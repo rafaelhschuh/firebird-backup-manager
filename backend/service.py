@@ -86,6 +86,7 @@ if IS_WINDOWS:
 
         def handle_service_args() -> bool:
             if "--service" in sys.argv:
+                # Modo CLI: install / start / stop / remove
                 idx = sys.argv.index("--service")
                 if idx + 1 >= len(sys.argv):
                     return False
@@ -94,11 +95,16 @@ if IS_WINDOWS:
                 win32serviceutil.HandleCommandLine(FBBackupService)
                 return True
 
-            # Quando o SCM inicia o serviço, o executável roda sem '--service'.
-            # HandleCommandLine sem comando entra no dispatcher de serviço do Windows.
-            # Restrito ao modo frozen para não quebrar a execução em dev.
+            # Modo SCM: o Windows inicia o exe sem argumentos.
+            # HandleCommandLine sem args apenas exibe help e retorna —
+            # o processo sai sem chamar StartServiceCtrlDispatcher,
+            # causando o Error 1053.
+            # O padrão correto para PyInstaller + pywin32 é usar servicemanager.
             if getattr(sys, "frozen", False):
-                win32serviceutil.HandleCommandLine(FBBackupService)
+                import servicemanager
+                servicemanager.Initialize()
+                servicemanager.PrepareToHostSingle(FBBackupService)
+                servicemanager.StartServiceCtrlDispatcher()
                 return True
 
             return False
