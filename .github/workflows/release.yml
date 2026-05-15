@@ -167,7 +167,8 @@ jobs:
       - name: Verificar serviço RUNNING
         shell: pwsh
         run: |
-          $query = sc.exe query FBBackupManager
+          # sc.exe retorna array de linhas; juntar em string antes de testar
+          $query = (sc.exe query FBBackupManager) -join " "
           Write-Host $query
           if ($query -notmatch "RUNNING") {
             Write-Error "::error::Serviço não está RUNNING"
