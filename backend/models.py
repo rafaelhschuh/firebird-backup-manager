@@ -10,6 +10,16 @@ class BackupStatus(str, Enum):
     RUNNING = "RUNNING"
 
 
+class ScheduleType(str, Enum):
+    BACKUP = "BACKUP"
+    REINDEX = "REINDEX"
+
+
+class RestoreType(str, Enum):
+    CONNECTION = "CONNECTION"  # restaura sobre o banco da conexão existente
+    SIMPLE = "SIMPLE"          # restaura para qualquer caminho (novo .fdb)
+
+
 class Connection(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     name: str
@@ -32,6 +42,7 @@ class Schedule(SQLModel, table=True):
     cron_minute: int
     days_of_week: str = "0,1,2,3,4,5,6"  # 0=seg, 6=dom
     enabled: bool = True
+    schedule_type: ScheduleType = ScheduleType.BACKUP
 
 
 class ScheduleConnection(SQLModel, table=True):
@@ -46,11 +57,27 @@ class BackupLog(SQLModel, table=True):
     started_at: datetime = Field(default_factory=datetime.utcnow)
     finished_at: Optional[datetime] = None
     status: BackupStatus = BackupStatus.RUNNING
+    operation_type: str = "BACKUP"  # "BACKUP" ou "REINDEX"
     fbk_path: Optional[str] = None
     fbk_size_bytes: Optional[int] = None
     duration_seconds: Optional[float] = None
     error_message: Optional[str] = None
     gbak_output: Optional[str] = None  # saída completa do gbak
+
+
+class RestoreLog(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    connection_id: int = Field(foreign_key="connection.id")
+    restore_type: RestoreType
+    fbk_path: str                        # arquivo .fbk de origem
+    target_db_path: str                  # caminho .fdb de destino (no servidor Firebird)
+    safety_bkp_path: Optional[str] = None  # caminho do .fdb.bkp criado antes do restore
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    finished_at: Optional[datetime] = None
+    status: BackupStatus = BackupStatus.RUNNING
+    duration_seconds: Optional[float] = None
+    error_message: Optional[str] = None
+    gbak_output: Optional[str] = None
 
 
 class AppConfig(SQLModel, table=True):

@@ -23,6 +23,8 @@ Aplicação web **self-hosted** para gerenciamento automatizado de backups de ba
 | [[arquitetura\|Arquitetura]] | Estrutura do projeto e decisões técnicas |
 | [[modelos\|Modelos de Dados]] | Schema do banco SQLite |
 | [[api\|API Reference]] | Endpoints REST e SSE |
+| [[restore\|Restore]] | Como restaurar bancos e usar o restore simples |
+| [[manutencao\|Manutenção]] | Reindexação para melhoria de performance |
 | [[build\|Build e Distribuição]] | Como compilar o .exe e gerar o instalador |
 
 ---
@@ -56,7 +58,7 @@ graph LR
 
 | Campo | Valor |
 |---|---|
-| Versão | 1.0.0 |
+| Versão | 2.0.0 |
 | Porta padrão | 8099 |
 | Python mínimo | 3.12 |
 | Plataforma alvo | Windows 10 / Server 2016+ |

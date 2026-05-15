@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 
 from backend.auth import require_auth
 from backend.database import get_session
-from backend.models import Schedule, ScheduleConnection, Connection
+from backend.models import Schedule, ScheduleConnection, Connection, ScheduleType
 from backend import scheduler as sched_module
 
 router = APIRouter(prefix="/api/schedules", tags=["schedules"], dependencies=[Depends(require_auth)])
@@ -17,6 +17,7 @@ class ScheduleCreate(BaseModel):
     cron_minute: int
     days_of_week: str = "0,1,2,3,4,5,6"
     enabled: bool = True
+    schedule_type: ScheduleType = ScheduleType.BACKUP
     connection_ids: list[int] = []
 
 
@@ -26,6 +27,7 @@ class ScheduleUpdate(BaseModel):
     cron_minute: Optional[int] = None
     days_of_week: Optional[str] = None
     enabled: Optional[bool] = None
+    schedule_type: Optional[ScheduleType] = None
     connection_ids: Optional[list[int]] = None
 
 
@@ -36,6 +38,7 @@ class ScheduleOut(BaseModel):
     cron_minute: int
     days_of_week: str
     enabled: bool
+    schedule_type: ScheduleType = ScheduleType.BACKUP
     next_run: Optional[str] = None
     connection_ids: list[int] = []
 
@@ -57,6 +60,7 @@ def _enrich(sched: Schedule, session: Session) -> dict:
         "cron_minute": sched.cron_minute,
         "days_of_week": sched.days_of_week,
         "enabled": sched.enabled,
+        "schedule_type": sched.schedule_type,
         "next_run": sched_module.get_next_run(sched.id),
         "connection_ids": _get_connection_ids(sched.id, session),
     }
@@ -87,6 +91,7 @@ def create_schedule(body: ScheduleCreate, session: Session = Depends(get_session
         cron_minute=body.cron_minute,
         days_of_week=body.days_of_week,
         enabled=body.enabled,
+        schedule_type=body.schedule_type,
     )
     session.add(sched)
     session.commit()

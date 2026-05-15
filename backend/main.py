@@ -12,6 +12,8 @@ from backend.database import create_db_and_tables, engine, init_app_config
 from backend.scheduler import scheduler, load_schedules
 from backend.routers import connections, backups, scheduler as sched_router, config
 from backend.routers import auth as auth_router
+from backend.routers import restore as restore_router
+from backend.routers import maintenance as maint_router
 
 # ---------------------------------------------------------------------------
 # Logging — warns/errors sempre gravados em arquivo na pasta da aplicação
@@ -79,13 +81,15 @@ async def lifespan(app: FastAPI):
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
-app = FastAPI(title="FB Backup Manager", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="FB Backup Manager", version="2.0.0", lifespan=lifespan)
 
 app.include_router(auth_router.router)
 app.include_router(connections.router)
 app.include_router(backups.router)
 app.include_router(sched_router.router)
 app.include_router(config.router)
+app.include_router(restore_router.router)
+app.include_router(maint_router.router)
 
 # Serve o frontend por último (catch-all)
 if _FRONTEND_DIR.exists():
