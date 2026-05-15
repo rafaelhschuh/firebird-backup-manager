@@ -1,0 +1,117 @@
+name: Build & Release
+
+# Dispara ao fazer push de uma tag vX.Y.Z  →  cria release automaticamente
+# Ou manualmente via Actions > "Run workflow"
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versão a publicar (ex: 1.2.0 — sem o "v")'
+        required: true
+        default: '1.0.0'
+
+# Permissão para criar releases e tags
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # ── 1. Código-fonte ─────────────────────────────────────────────────
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ── 2. Determinar versão ────────────────────────────────────────────
+      # push de tag  → strip do "v" (v1.2.0 → 1.2.0)
+      # workflow_dispatch → usa o input diretamente
+      - name: Determinar versão
+        id: ver
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION="${{ inputs.version }}"
+          fi
+          echo "version=$VERSION"   >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"      >> "$GITHUB_OUTPUT"
+          echo "Versão de build: $VERSION"
+
+      # ── 3. Python 3.12 ──────────────────────────────────────────────────
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      # ── 4. Dependências Python ──────────────────────────────────────────
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      # ── 5. Gerar executável ─────────────────────────────────────────────
+      - name: Build executável (PyInstaller)
+        run: pyinstaller fb_backup_manager.spec --noconfirm
+
+      - name: Verificar executável gerado
+        shell: bash
+        run: |
+          test -f dist/fb_backup_manager/fb_backup_manager.exe \
+            || (echo "::error::fb_backup_manager.exe não foi gerado" && exit 1)
+          echo "Executável OK: $(du -sh dist/fb_backup_manager | cut -f1) total"
+
+      # ── 6. Inno Setup ───────────────────────────────────────────────────
+      - name: Instalar Inno Setup 6
+        run: choco install innosetup --no-progress -y
+
+      # O installer.iss referencia "data\*"; cria placeholder para evitar erro
+      - name: Criar diretório data com placeholder
+        shell: bash
+        run: mkdir -p data && touch data/.gitkeep
+
+      - name: Compilar instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          $version = "${{ steps.ver.outputs.version }}"
+          Write-Host "Compilando instalador versão $version ..."
+          & $iscc installer.iss "/DAppVersion=$version"
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "ISCC.exe falhou com código $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+
+      - name: Verificar instalador gerado
+        shell: bash
+        run: |
+          INSTALLER="dist/FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe"
+          test -f "$INSTALLER" \
+            || (echo "::error::Instalador não encontrado: $INSTALLER" && exit 1)
+          echo "Instalador OK: $(du -sh "$INSTALLER" | cut -f1)"
+
+      # ── 7. Criar Release no GitHub ──────────────────────────────────────
+      - name: Criar GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: "FB Backup Manager v${{ steps.ver.outputs.version }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Instalação
+
+            1. Baixe `FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe`
+            2. Execute como **Administrador** na máquina Windows
+            3. Siga o assistente — defina a senha de acesso durante a instalação
+            4. Após instalar, acesse **http://localhost:8099** no navegador
+
+            > O serviço Windows `FBBackupManager` é instalado e iniciado automaticamente.
+          files: |
+            dist/FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
