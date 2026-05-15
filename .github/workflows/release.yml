@@ -76,10 +76,18 @@ jobs:
       - name: Compilar instalador (Inno Setup)
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $iscc    = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           $version = "${{ steps.ver.outputs.version }}"
+
+          # Substitui a versão diretamente no .iss (mais confiável que /D override)
+          (Get-Content installer.iss) `
+            -replace '#define AppVersion\s+"[^"]+"', "#define AppVersion `"$version`"" `
+            | Set-Content installer.iss
+          Write-Host "installer.iss atualizado para versão $version"
+
           Write-Host "Compilando instalador versão $version ..."
-          & $iscc installer.iss "/DAppVersion=$version"
+          & $iscc installer.iss
           if ($LASTEXITCODE -ne 0) {
             Write-Error "ISCC.exe falhou com código $LASTEXITCODE"
             exit $LASTEXITCODE
@@ -88,6 +96,8 @@ jobs:
       - name: Verificar instalador gerado
         shell: bash
         run: |
+          echo "Conteúdo de dist/:"
+          ls dist/
           INSTALLER="dist/FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe"
           test -f "$INSTALLER" \
             || (echo "::error::Instalador não encontrado: $INSTALLER" && exit 1)
