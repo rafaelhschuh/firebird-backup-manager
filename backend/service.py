@@ -73,6 +73,10 @@ if IS_WINDOWS:
                     thread = threading.Thread(target=_start_uvicorn, args=(port,), daemon=True)
                     thread.start()
 
+                    # Informa ao SCM que o serviço está rodando; sem isso o SCM
+                    # aguarda o timeout (~30 s) e mata o processo.
+                    self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+
                     win32event.WaitForSingleObject(self._stop_event, win32event.INFINITE)
 
                 except Exception as exc:
@@ -81,15 +85,23 @@ if IS_WINDOWS:
                     self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
         def handle_service_args() -> bool:
-            if "--service" not in sys.argv:
-                return False
-            idx = sys.argv.index("--service")
-            if idx + 1 >= len(sys.argv):
-                return False
-            action = sys.argv[idx + 1]
-            sys.argv = [sys.argv[0], action]
-            win32serviceutil.HandleCommandLine(FBBackupService)
-            return True
+            if "--service" in sys.argv:
+                idx = sys.argv.index("--service")
+                if idx + 1 >= len(sys.argv):
+                    return False
+                action = sys.argv[idx + 1]
+                sys.argv = [sys.argv[0], action]
+                win32serviceutil.HandleCommandLine(FBBackupService)
+                return True
+
+            # Quando o SCM inicia o serviço, o executável roda sem '--service'.
+            # HandleCommandLine sem comando entra no dispatcher de serviço do Windows.
+            # Restrito ao modo frozen para não quebrar a execução em dev.
+            if getattr(sys, "frozen", False):
+                win32serviceutil.HandleCommandLine(FBBackupService)
+                return True
+
+            return False
 
     except ImportError:
         logger.warning("pywin32 não disponível — modo serviço desabilitado.")
