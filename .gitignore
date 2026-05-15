@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+*.egg-info/
+
+# Build artifacts
+build/
+dist/
+*.spec.bak
+.build-cache/
+
+# Data / runtime
+data/
+*.db
+*.log
+*.log.*
+
+# PyInstaller
+*.manifest
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

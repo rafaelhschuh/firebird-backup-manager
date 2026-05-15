@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>FB Backup Manager</title>
+<link id="favicon" rel="icon" type="image/png" href="">
+<style>
+  :root {
+    --bg: #f1f5f9;
+    --sidebar-bg: #0f172a;
+    --sidebar-active: #2563eb;
+    --sidebar-hover: #1e293b;
+    --card-bg: #ffffff;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --border: #e2e8f0;
+    --success: #16a34a;
+    --error: #dc2626;
+    --warning: #d97706;
+    --info: #2563eb;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,.1);
+    --sidebar-w: 236px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  /* ── Login screen ─────────────────────────────────────────────────── */
+  #login-screen {
+    display: none; position: fixed; inset: 0;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+    z-index: 9999; align-items: center; justify-content: center;
+  }
+  #login-screen.visible { display: flex; }
+  .login-card {
+    background: var(--card-bg); border-radius: 16px; padding: 40px 44px;
+    width: 380px; max-width: 95vw;
+    box-shadow: 0 24px 64px rgba(0,0,0,.35);
+  }
+  .login-logo { text-align: center; margin-bottom: 32px; }
+  .login-logo img { max-height: 56px; max-width: 200px; object-fit: contain; }
+  .login-logo .login-title { font-size: 1.25rem; font-weight: 700; color: var(--text); margin-top: 6px; }
+  .login-logo .login-sub { font-size: .8rem; color: var(--text-muted); margin-top: 2px; }
+  #login-btn { width: 100%; padding: 10px; margin-top: 12px; font-size: .95rem; }
+
+  /* ── App shell ────────────────────────────────────────────────────── */
+  #app-screen { display: none; min-height: 100vh; }
+  #app-screen.visible { display: flex; }
+
+  /* ── Sidebar ──────────────────────────────────────────────────────── */
+  #sidebar {
+    width: var(--sidebar-w); background: var(--sidebar-bg);
+    color: #94a3b8; display: flex; flex-direction: column;
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 10;
+    border-right: 1px solid rgba(255,255,255,.05);
+  }
+  .sidebar-logo {
+    padding: 20px 20px 14px; min-height: 68px;
+    display: flex; align-items: center; border-bottom: 1px solid rgba(255,255,255,.06);
+  }
+  .sidebar-logo img { max-height: 44px; max-width: 172px; object-fit: contain; }
+  .sidebar-logo .logo-text { font-size: .95rem; font-weight: 700; color: #f1f5f9; letter-spacing: .3px; }
+  .sidebar-logo .logo-text span { display: block; font-size: .68rem; font-weight: 400; color: #475569; margin-top: 1px; }
+  #sidebar nav { padding: 10px 0; flex: 1; }
+  #sidebar nav a {
+    display: flex; align-items: center; gap: 11px;
+    padding: 10px 20px; color: #94a3b8; text-decoration: none;
+    font-size: .855rem; font-weight: 500; transition: background .12s, color .12s;
+    cursor: pointer; border-left: 3px solid transparent;
+  }
+  #sidebar nav a:hover { background: var(--sidebar-hover); color: #e2e8f0; }
+  #sidebar nav a.active { background: rgba(37,99,235,.18); color: #93c5fd; border-left-color: var(--sidebar-active); }
+  #sidebar nav a svg { flex-shrink: 0; opacity: .8; }
+  #sidebar nav a.active svg { opacity: 1; }
+  .sidebar-bottom {
+    padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.06);
+  }
+  .btn-logout {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    padding: 8px 12px; border-radius: var(--radius-sm); background: none;
+    border: 1px solid #1e293b; color: #64748b; font-size: .8rem; font-weight: 500;
+    cursor: pointer; transition: background .12s, color .12s;
+  }
+  .btn-logout:hover { background: #1e293b; color: #94a3b8; }
+
+  /* ── Main ─────────────────────────────────────────────────────────── */
+  #main { margin-left: var(--sidebar-w); flex: 1; padding: 28px 32px; min-height: 100vh; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .page-title { font-size: 1.35rem; font-weight: 700; color: var(--text); }
+
+  /* ── Summary bar ──────────────────────────────────────────────────── */
+  .summary-bar { display: flex; gap: 14px; margin-bottom: 22px; flex-wrap: wrap; }
+  .summary-card {
+    background: var(--card-bg); border-radius: var(--radius); padding: 16px 22px;
+    flex: 1; min-width: 130px; border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+  .summary-card .sc-value { font-size: 1.65rem; font-weight: 700; line-height: 1.1; }
+  .summary-card .sc-label { font-size: .75rem; color: var(--text-muted); margin-top: 3px; }
+
+  /* ── Cards ────────────────────────────────────────────────────────── */
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(288px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--card-bg); border-radius: var(--radius); padding: 20px 22px;
+    box-shadow: var(--shadow); border: 1px solid var(--border);
+    transition: box-shadow .15s, transform .15s;
+  }
+  .card:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .card-title { font-weight: 700; font-size: .95rem; }
+  .card-sub { font-size: .75rem; color: var(--text-muted); margin-top: 2px; }
+  .card-status { margin-top: 12px; display: flex; align-items: center; gap: 6px; }
+  .card-meta { margin-top: 6px; font-size: .77rem; color: var(--text-muted); }
+  .card-actions { margin-top: 14px; }
+
+  /* ── Badges ───────────────────────────────────────────────────────── */
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: .72rem; font-weight: 700; letter-spacing: .02em; }
+  .badge-success { background: #dcfce7; color: #15803d; }
+  .badge-error   { background: #fee2e2; color: #b91c1c; }
+  .badge-running { background: #fef3c7; color: #b45309; }
+  .badge-waiting { background: #e0e7ff; color: #3730a3; }
+
+  /* ── Table ────────────────────────────────────────────────────────── */
+  .table-wrap { overflow-x: auto; background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; font-size: .845rem; }
+  thead th { background: #f8fafc; padding: 11px 14px; text-align: left; font-weight: 600; font-size: .78rem; color: var(--text-muted); border-bottom: 1px solid var(--border); white-space: nowrap; text-transform: uppercase; letter-spacing: .04em; }
+  tbody td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: #f8fafc; }
+
+  /* ── Buttons ──────────────────────────────────────────────────────── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; border-radius: var(--radius-sm);
+    font-size: .83rem; font-weight: 600; border: none; cursor: pointer;
+    transition: filter .12s, transform .08s; user-select: none;
+  }
+  .btn:active { transform: scale(.97); }
+  .btn:hover { filter: brightness(.92); }
+  .btn-primary { background: var(--info); color: #fff; }
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-danger  { background: var(--error); color: #fff; }
+  .btn-ghost   { background: transparent; color: var(--info); border: 1px solid #bfdbfe; }
+  .btn-ghost:hover { background: #eff6ff; filter: none; }
+  .btn-sm { padding: 5px 10px; font-size: .77rem; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+
+  /* ── Form ─────────────────────────────────────────────────────────── */
+  .form-group { margin-bottom: 15px; }
+  label { display: block; font-size: .78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; letter-spacing: .02em; text-transform: uppercase; }
+  input[type=text], input[type=number], input[type=password], input[type=file], select, textarea {
+    width: 100%; padding: 8px 12px; border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm); font-size: .875rem; color: var(--text);
+    background: #fff; outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--info); box-shadow: 0 0 0 3px rgba(37,99,235,.1);
+  }
+  input[type=file] { cursor: pointer; padding: 6px 10px; }
+  .pw-wrap { position: relative; }
+  .pw-wrap input { padding-right: 38px; }
+  .pw-toggle { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: .9rem; padding: 2px; }
+  .inline-row { display: flex; gap: 10px; }
+  .inline-row .form-group { flex: 1; margin-bottom: 0; }
+  .toggle-row { display: flex; align-items: center; gap: 10px; }
+  .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; }
+  .toggle-slider { position: absolute; inset: 0; background: #cbd5e1; border-radius: 22px; cursor: pointer; transition: .2s; }
+  .toggle-slider:before { content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px; background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+  .toggle input:checked + .toggle-slider { background: var(--info); }
+  .toggle input:checked + .toggle-slider:before { transform: translateX(18px); }
+  .url-toggle-btn { font-size: .74rem; color: var(--info); background: none; border: none; cursor: pointer; padding: 0; text-decoration: underline; float: right; margin-top: -20px; }
+
+  /* ── Days ─────────────────────────────────────────────────────────── */
+  .days-wrap { display: flex; gap: 6px; flex-wrap: wrap; }
+  .day-cb { display: none; }
+  .day-lbl { padding: 5px 11px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-size: .76rem; font-weight: 700; cursor: pointer; user-select: none; transition: .12s; }
+  .day-cb:checked + .day-lbl { background: var(--info); color: #fff; border-color: var(--info); }
+
+  /* ── Conn checklist ───────────────────────────────────────────────── */
+  .conn-checklist { border: 1.5px solid var(--border); border-radius: var(--radius-sm); max-height: 160px; overflow-y: auto; padding: 6px; }
+  .conn-checklist label { display: flex; align-items: center; gap: 8px; padding: 5px 6px; border-radius: 4px; cursor: pointer; font-weight: 400; color: var(--text); font-size: .84rem; text-transform: none; letter-spacing: 0; }
+  .conn-checklist label:hover { background: #f1f5f9; }
+  .conn-checklist input[type=checkbox] { width: auto; }
+
+  /* ── Schedule block ───────────────────────────────────────────────── */
+  .sched-block { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px 20px; margin-bottom: 12px; box-shadow: var(--shadow); transition: box-shadow .15s; }
+  .sched-block:hover { box-shadow: var(--shadow-md); }
+  .sched-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .sched-name { font-weight: 700; font-size: .95rem; }
+  .sched-time { font-size: .82rem; color: var(--text-muted); margin-top: 3px; }
+  .sched-conns { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .conn-tag { background: #eff6ff; color: #2563eb; font-size: .7rem; font-weight: 700; padding: 2px 9px; border-radius: 999px; border: 1px solid #bfdbfe; }
+  .sched-actions { display: flex; gap: 8px; flex-shrink: 0; align-items: flex-start; }
+
+  /* ── Terminal ─────────────────────────────────────────────────────── */
+  .terminal { background: #0d1117; color: #e6edf3; font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace; font-size: .77rem; border-radius: var(--radius-sm); padding: 14px 16px; height: 360px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; line-height: 1.55; }
+  .terminal .t-info  { color: #79c0ff; }
+  .terminal .t-ok    { color: #56d364; }
+  .terminal .t-error { color: #ff7b72; }
+  .terminal .t-dim   { color: #484f58; }
+
+  /* ── Filter ───────────────────────────────────────────────────────── */
+  .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .filter-bar select { width: auto; min-width: 180px; }
+
+  /* ── Log output ───────────────────────────────────────────────────── */
+  .log-output { font-family: monospace; font-size: .71rem; background: #f8fafc; border: 1px solid var(--border); border-radius: 4px; padding: 8px; max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin-top: 6px; display: none; }
+  .log-output.open { display: block; }
+  .toggle-output { font-size: .74rem; color: var(--info); background: none; border: none; cursor: pointer; padding: 0; }
+
+  /* ── Modal ────────────────────────────────────────────────────────── */
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+  .overlay.open { display: flex; }
+  .modal { background: var(--card-bg); border-radius: var(--radius); padding: 28px 32px; width: 580px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.22); }
+  .modal h2 { margin-bottom: 22px; font-size: 1.1rem; }
+  .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 26px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+  /* ── Settings sections ────────────────────────────────────────────── */
+  .settings-section { max-width: 520px; margin-bottom: 24px; }
+  .settings-section h3 { font-size: .92rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+
+  /* ── Toast ────────────────────────────────────────────────────────── */
+  #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; gap: 8px; }
+  .toast { padding: 12px 18px; border-radius: var(--radius); color: #fff; font-size: .84rem; font-weight: 500; box-shadow: var(--shadow-md); animation: slideIn .2s ease; max-width: 340px; }
+  .toast-success { background: var(--success); }
+  .toast-error   { background: var(--error); }
+  .toast-info    { background: var(--info); }
+  @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.3); border-top-color: #fff; border-radius: 50%; animation: spin .55s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Empty state ──────────────────────────────────────────────────── */
+  .empty { text-align: center; padding: 56px 24px; color: var(--text-muted); }
+  .empty svg { opacity: .25; margin-bottom: 12px; }
+  .empty p { font-size: .9rem; }
+
+  /* ── Logo preview ─────────────────────────────────────────────────── */
+  .logo-preview { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f8fafc; min-height: 56px; }
+  .logo-preview img { max-height: 44px; max-width: 160px; object-fit: contain; }
+  .logo-preview .no-logo { font-size: .82rem; color: var(--text-muted); }
+
+  /* ── Responsive ───────────────────────────────────────────────────── */
+  @media (max-width: 700px) {
+    #sidebar { width: 60px; }
+    .sidebar-logo .logo-text, #sidebar nav a span, .sidebar-bottom .btn-logout span { display: none; }
+    .sidebar-logo { justify-content: center; padding: 16px 0; }
+    .sidebar-logo img { max-width: 36px; }
+    #sidebar nav a { justify-content: center; padding: 12px; border-left: none; }
+    .sidebar-bottom { padding: 10px 8px; }
+    .btn-logout { justify-content: center; }
+    #main { margin-left: 60px; padding: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════ LOGIN ═══════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo" id="login-logo-area">
+      <div class="login-title">FB Backup Manager</div>
+      <div class="login-sub">Firebird Backup</div>
+    </div>
+    <div class="form-group">
+      <label>Senha de administrador</label>
+      <div class="pw-wrap">
+        <input type="password" id="login-pwd" placeholder="••••••••"
+               onkeydown="if(event.key==='Enter')doLogin()" autofocus />
+        <button type="button" class="pw-toggle" onclick="togglePw('login-pwd')">👁</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Entrar</button>
+  </div>
+</div>
+
+<!-- ═══════════════════ APP ═══════════════════ -->
+<div id="app-screen">
+
+  <!-- SIDEBAR -->
+  <aside id="sidebar">
+    <div class="sidebar-logo" id="sidebar-logo-area">
+      <div class="logo-text">FB Backup Manager<span>Firebird Backup</span></div>
+    </div>
+    <nav>
+      <a data-page="dashboard" class="active">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span>Dashboard</span>
+      </a>
+      <a data-page="connections">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg>
+        <span>Conexões</span>
+      </a>
+      <a data-page="schedules">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        <span>Agendamentos</span>
+      </a>
+      <a data-page="history">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span>Histórico</span>
+      </a>
+      <a data-page="settings">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Configurações</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="btn-logout" onclick="doLogout()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        <span>Sair</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main id="main">
+
+    <!-- DASHBOARD -->
+    <section id="page-dashboard" class="page active">
+      <div class="page-header">
+        <div class="page-title">Dashboard</div>
+      </div>
+      <div class="summary-bar" id="dash-summary"></div>
+      <div id="dashboard-cards" class="cards">
+        <p class="empty"><p>Carregando…</p></p>
+      </div>
+    </section>
+
+    <!-- CONNECTIONS -->
+    <section id="page-connections" class="page">
+      <div class="page-header">
+        <div class="page-title">Conexões</div>
+        <button class="btn btn-primary" onclick="openConnModal()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nova Conexão
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nome</th><th>Host / Porta</th><th>Banco</th><th>Destino</th><th>Retenção</th><th>Ativo</th><th>Ações</th></tr></thead>
+          <tbody id="conn-tbody">
+            <tr><td colspan="7"><div class="empty"><p>Carregando…</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SCHEDULES -->
+    <section id="page-schedules" class="page">
+      <div class="page-header">
+        <div class="page-title">Agendamentos</div>
+        <button class="btn btn-primary" onclick="openSchedModal()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Novo Agendamento
+        </button>
+      </div>
+      <div id="sched-list"><div class="empty"><p>Carregando…</p></div></div>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="page-history" class="page">
+      <div class="page-header">
+        <div class="page-title">Histórico de Backups</div>
+      </div>
+      <div class="filter-bar">
+        <select id="hist-filter-conn" onchange="loadHistory()"><option value="">Todas as conexões</option></select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Conexão</th><th>Status</th><th>Tamanho</th><th>Duração</th><th>Saída / Erro</th></tr></thead>
+          <tbody id="hist-tbody">
+            <tr><td colspan="6"><div class="empty"><p>Carregando…</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page">
+      <div class="page-header">
+        <div class="page-title">Configurações</div>
+      </div>
+
+      <!-- Logo -->
+      <div class="card settings-section">
+        <h3>Logo da Aplicação</h3>
+        <div class="logo-preview" id="logo-preview-area">
+          <span class="no-logo">Nenhum logo configurado.</span>
+        </div>
+        <div class="form-group">
+          <label>Arquivo (PNG, JPG, SVG, ICO — máx. 2 MB)</label>
+          <input type="file" id="logo-file" accept=".png,.jpg,.jpeg,.svg,.ico" />
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="uploadLogo()">Enviar Logo</button>
+          <button class="btn btn-ghost" onclick="deleteLogo()">Remover Logo</button>
+        </div>
+      </div>
+
+      <!-- Segurança -->
+      <div class="card settings-section">
+        <h3>Segurança</h3>
+        <div class="form-group">
+          <label>Senha atual</label>
+          <div class="pw-wrap">
+            <input type="password" id="pwd-current" />
+            <button type="button" class="pw-toggle" onclick="togglePw('pwd-current')">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Nova senha (mínimo 4 caracteres)</label>
+          <div class="pw-wrap">
+            <input type="password" id="pwd-new" />
+            <button type="button" class="pw-toggle" onclick="togglePw('pwd-new')">👁</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Confirmar nova senha</label>
+          <div class="pw-wrap">
+            <input type="password" id="pwd-confirm" />
+            <button type="button" class="pw-toggle" onclick="togglePw('pwd-confirm')">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="changePassword()">Alterar Senha</button>
+      </div>
+
+      <!-- Servidor -->
+      <div class="card settings-section">
+        <h3>Servidor</h3>
+        <div class="form-group">
+          <label>Porta da Aplicação</label>
+          <input type="number" id="cfg-port" min="1024" max="65535" style="max-width:160px" />
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
+          <button class="btn btn-primary" onclick="saveConfig()">Salvar Porta</button>
+          <button class="btn btn-ghost" onclick="restartService()">Reiniciar Serviço</button>
+        </div>
+        <div id="app-status" style="font-size:.83rem;color:var(--text-muted);line-height:1.8">Carregando…</div>
+      </div>
+    </section>
+
+  </main>
+</div><!-- #app-screen -->
+
+<!-- ═══════════════════ MODALS ═══════════════════ -->
+
+<!-- Connection Modal -->
+<div class="overlay" id="conn-overlay">
+  <div class="modal">
+    <h2 id="conn-modal-title">Nova Conexão</h2>
+    <input type="hidden" id="conn-id" />
+
+    <div class="form-group">
+      <label>Nome *</label>
+      <input type="text" id="conn-name" placeholder="Servidor Principal" />
+    </div>
+
+    <div id="conn-fields-sep">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        <button type="button" class="url-toggle-btn" onclick="toggleConnUrlMode(true)">Usar URL completa</button>
+      </div>
+      <div class="inline-row form-group">
+        <div class="form-group">
+          <label>Host *</label>
+          <input type="text" id="conn-host" placeholder="192.168.1.10" />
+        </div>
+        <div class="form-group" style="flex:0 0 110px">
+          <label>Porta</label>
+          <input type="number" id="conn-port" value="3050" min="1" max="65535" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Caminho do banco no servidor *</label>
+        <input type="text" id="conn-dbpath" placeholder="C:\dados\banco.fdb" />
+      </div>
+    </div>
+
+    <div id="conn-fields-url" style="display:none">
+      <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+        <button type="button" class="url-toggle-btn" onclick="toggleConnUrlMode(false)">Usar campos separados</button>
+      </div>
+      <div class="form-group">
+        <label>URL de conexão *</label>
+        <input type="text" id="conn-url" placeholder="192.168.1.10/3050:C:\dados\banco.fdb" />
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Usuário *</label>
+      <input type="text" id="conn-user" placeholder="SYSDBA" />
+    </div>
+    <div class="form-group">
+      <label>Senha *</label>
+      <div class="pw-wrap">
+        <input type="password" id="conn-pass" placeholder="masterkey" />
+        <button type="button" class="pw-toggle" onclick="togglePw('conn-pass')">👁</button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Destino dos backups *</label>
+      <input type="text" id="conn-path" placeholder="C:\Backups\Firebird" />
+    </div>
+    <div class="inline-row form-group">
+      <div class="form-group">
+        <label>Retenção (cópias)</label>
+        <input type="number" id="conn-ret" value="7" min="1" max="365" />
+      </div>
+      <div class="form-group">
+        <label>Caminho do gbak.exe</label>
+        <input type="text" id="conn-gbak" placeholder="C:\...\gbak.exe" />
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="conn-enabled" checked /><span class="toggle-slider"></span></label>
+        <span style="font-size:.85rem;font-weight:500">Conexão ativa</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeConnModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveConnection()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Schedule Modal -->
+<div class="overlay" id="sched-overlay">
+  <div class="modal">
+    <h2 id="sched-modal-title">Novo Agendamento</h2>
+    <input type="hidden" id="sched-id" />
+    <div class="form-group">
+      <label>Nome do agendamento *</label>
+      <input type="text" id="sched-name" placeholder="Backup da noite" />
+    </div>
+    <div class="inline-row form-group">
+      <div class="form-group">
+        <label>Hora</label>
+        <input type="number" id="sched-hour" min="0" max="23" value="2" />
+      </div>
+      <div class="form-group">
+        <label>Minuto</label>
+        <input type="number" id="sched-minute" min="0" max="59" value="0" />
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Dias da Semana</label>
+      <div class="days-wrap">
+        <input type="checkbox" class="day-cb" id="d0" value="0" checked /><label class="day-lbl" for="d0">Seg</label>
+        <input type="checkbox" class="day-cb" id="d1" value="1" checked /><label class="day-lbl" for="d1">Ter</label>
+        <input type="checkbox" class="day-cb" id="d2" value="2" checked /><label class="day-lbl" for="d2">Qua</label>
+        <input type="checkbox" class="day-cb" id="d3" value="3" checked /><label class="day-lbl" for="d3">Qui</label>
+        <input type="checkbox" class="day-cb" id="d4" value="4" checked /><label class="day-lbl" for="d4">Sex</label>
+        <input type="checkbox" class="day-cb" id="d5" value="5" checked /><label class="day-lbl" for="d5">Sáb</label>
+        <input type="checkbox" class="day-cb" id="d6" value="6" checked /><label class="day-lbl" for="d6">Dom</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Conexões *</label>
+      <div class="conn-checklist" id="sched-conn-list">
+        <p style="color:var(--text-muted);font-size:.82rem;padding:4px">Nenhuma conexão cadastrada.</p>
+      </div>
+    </div>
+    <div class="form-group">
+      <div class="toggle-row">
+        <label class="toggle"><input type="checkbox" id="sched-enabled" checked /><span class="toggle-slider"></span></label>
+        <span style="font-size:.85rem;font-weight:500">Agendamento ativo</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSchedModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveSchedule()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Backup Output Modal -->
+<div class="overlay" id="bkp-overlay">
+  <div class="modal" style="width:700px">
+    <h2 id="bkp-modal-title">Executando backup…</h2>
+    <div class="terminal" id="bkp-terminal"></div>
+    <div id="bkp-result" style="margin-top:12px;font-size:.85rem;min-height:24px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="bkp-close-btn" onclick="closeBkpModal()" disabled>Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- ═══════════════════ JS ═══════════════════ -->
+<script>
+let _token = localStorage.getItem('fbm_token') || '';
+let _connections = [];
+let _schedules   = [];
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+function showLogin() {
+  document.getElementById('login-screen').classList.add('visible');
+  document.getElementById('app-screen').classList.remove('visible');
+  setTimeout(() => document.getElementById('login-pwd')?.focus(), 80);
+}
+
+function showApp() {
+  document.getElementById('login-screen').classList.remove('visible');
+  document.getElementById('app-screen').classList.add('visible');
+}
+
+async function doLogin() {
+  const btn = document.getElementById('login-btn');
+  const pwd = document.getElementById('login-pwd').value;
+  if (!pwd) { toast('Informe a senha.', 'error'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Entrando…';
+  try {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd }),
+    });
+    if (!r.ok) {
+      toast('Senha incorreta.', 'error');
+      document.getElementById('login-pwd').value = '';
+      document.getElementById('login-pwd').focus();
+      return;
+    }
+    const data = await r.json();
+    _token = data.token;
+    localStorage.setItem('fbm_token', _token);
+    showApp();
+    loadLogoForUI();
+    loadDashboard();
+  } catch(e) {
+    toast('Erro ao conectar.', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Entrar';
+  }
+}
+
+async function doLogout() {
+  try { await api('POST', '/api/auth/logout'); } catch(e) {}
+  _token = '';
+  localStorage.removeItem('fbm_token');
+  showLogin();
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+async function api(method, path, body) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(_token ? { 'Authorization': 'Bearer ' + _token } : {}),
+    },
+  };
+  if (body !== undefined) opts.body = JSON.stringify(body);
+  const r = await fetch(path, opts);
+  if (r.status === 401) {
+    _token = '';
+    localStorage.removeItem('fbm_token');
+    showLogin();
+    throw new Error('Sessão expirada. Faça login novamente.');
+  }
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ detail: r.statusText }));
+    throw new Error(err.detail || r.statusText);
+  }
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 4500);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+const fmtBytes = b => !b ? '-' : b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(2)+' MB';
+const fmtDate  = iso => iso ? new Date(iso+(iso.endsWith('Z')?'':'Z')).toLocaleString('pt-BR') : '-';
+const fmtDur   = s => !s ? '-' : s < 60 ? s.toFixed(1)+'s' : Math.floor(s/60)+'m '+(s%60).toFixed(0)+'s';
+const esc      = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const connName = id => (_connections.find(x => x.id === id) || {}).name || '#'+id;
+const dayNames = dow => {
+  const n = ['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  return dow.split(',').map(d => n[+d]||d).join(', ');
+};
+
+function statusBadge(st) {
+  const m = { SUCCESS:['badge-success','✓ Sucesso'], FAILED:['badge-error','✗ Falha'], RUNNING:['badge-running','⏳ Executando'] };
+  const [cls,lbl] = m[st]||['badge-waiting','– Aguardando'];
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+function togglePw(id) {
+  const el = document.getElementById(id);
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+// ── Logo ───────────────────────────────────────────────────────────────────
+let _logoUrl = null;
+
+async function loadLogoForUI() {
+  try {
+    const r = await fetch('/api/config/logo');
+    if (!r.ok) return;
+    const blob = await r.blob();
+    _logoUrl = URL.createObjectURL(blob);
+
+    // Sidebar
+    const sla = document.getElementById('sidebar-logo-area');
+    sla.innerHTML = `<img src="${_logoUrl}" alt="Logo">`;
+
+    // Login
+    const lla = document.getElementById('login-logo-area');
+    lla.innerHTML = `<img src="${_logoUrl}" alt="Logo">`;
+
+    // Favicon
+    const fav = document.getElementById('favicon');
+    fav.href = _logoUrl;
+  } catch(e) { /* sem logo — usa texto padrão */ }
+}
+
+// ── Nav ────────────────────────────────────────────────────────────────────
+document.querySelectorAll('#sidebar nav a').forEach(a => {
+  a.addEventListener('click', () => {
+    document.querySelectorAll('#sidebar nav a').forEach(x => x.classList.remove('active'));
+    a.classList.add('active');
+    const page = a.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    if (page === 'dashboard')   loadDashboard();
+    if (page === 'connections') loadConnections();
+    if (page === 'schedules')   loadSchedulesPage();
+    if (page === 'history')     loadHistoryPage();
+    if (page === 'settings')    loadSettings();
+  });
+});
+
+// Esc fecha modais
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.overlay.open').forEach(o => {
+      const closeBtn = document.getElementById('bkp-close-btn');
+      if (o.id === 'bkp-overlay' && closeBtn?.disabled) return;
+      o.classList.remove('open');
+    });
+  }
+});
+
+// ── DASHBOARD ──────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const [conns, logs, scheds] = await Promise.all([
+      api('GET','/api/connections'),
+      api('GET','/api/logs?limit=200'),
+      api('GET','/api/schedules'),
+    ]);
+    _connections = conns;
+
+    // Summary bar
+    const totalConns = conns.length;
+    const successes  = logs.filter(l => l.status === 'SUCCESS').length;
+    const failures   = logs.filter(l => l.status === 'FAILED').length;
+    const nextRun    = scheds.flatMap(s => s.next_run && s.enabled ? [s.next_run] : []).sort()[0];
+    document.getElementById('dash-summary').innerHTML = `
+      <div class="summary-card"><div class="sc-value">${totalConns}</div><div class="sc-label">Conexões</div></div>
+      <div class="summary-card"><div class="sc-value" style="color:var(--success)">${successes}</div><div class="sc-label">Sucessos (últimos 200)</div></div>
+      <div class="summary-card"><div class="sc-value" style="color:var(--error)">${failures}</div><div class="sc-label">Falhas (últimos 200)</div></div>
+      <div class="summary-card"><div class="sc-value" style="font-size:1rem">${nextRun ? fmtDate(nextRun) : '—'}</div><div class="sc-label">Próximo backup</div></div>`;
+
+    const container = document.getElementById('dashboard-cards');
+    if (!conns.length) {
+      container.innerHTML = `<div class="empty"><svg width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg><p>Nenhuma conexão cadastrada.<br>Vá em <strong>Conexões</strong> para adicionar.</p></div>`;
+      return;
+    }
+    container.innerHTML = conns.map(c => {
+      const lastLog   = logs.filter(l => l.connection_id === c.id).sort((a,b) => b.started_at > a.started_at ? 1:-1)[0];
+      const nextSched = scheds.flatMap(s => s.connection_ids.includes(c.id) && s.enabled && s.next_run ? [s] : []).sort((a,b) => a.next_run > b.next_run ? 1:-1)[0];
+      const badge     = lastLog ? statusBadge(lastLog.status) : '<span class="badge badge-waiting">Sem backup</span>';
+      return `<div class="card">
+        <div class="card-title">${esc(c.name)}</div>
+        <div class="card-sub">${esc(c.host)}:${c.port}</div>
+        <div class="card-status">${badge}</div>
+        <div class="card-meta">Último: ${fmtBytes(lastLog?.fbk_size_bytes)} &nbsp;·&nbsp; Próximo: ${nextSched ? fmtDate(nextSched.next_run) : 'Não agendado'}</div>
+        <div class="card-actions">
+          <button class="btn btn-success btn-sm" onclick="runBackup(${c.id},this)">▶ Executar agora</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+}
+
+// ── BACKUP STREAM ──────────────────────────────────────────────────────────
+let _bkpSource = null;
+
+async function runBackup(connId, btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>'; }
+  const term     = document.getElementById('bkp-terminal');
+  const title    = document.getElementById('bkp-modal-title');
+  const result   = document.getElementById('bkp-result');
+  const closeBtn = document.getElementById('bkp-close-btn');
+  term.innerHTML = ''; result.innerHTML = ''; closeBtn.disabled = true;
+  const connObj  = _connections.find(c => c.id === connId);
+  title.textContent = `Backup: ${connObj?.name || '#'+connId}`;
+  document.getElementById('bkp-overlay').classList.add('open');
+
+  function appendLine(text, cls) {
+    const line = document.createElement('div');
+    line.className = cls || '';
+    line.textContent = text;
+    term.appendChild(line);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  if (_bkpSource) { _bkpSource.close(); _bkpSource = null; }
+
+  // EventSource não suporta headers — passa token via query param
+  _bkpSource = new EventSource(`/api/backups/${connId}/run?token=${encodeURIComponent(_token)}`);
+
+  _bkpSource.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'start') {
+      appendLine(`→ Iniciando backup de: ${data.connection}`, 't-info');
+    } else if (data.type === 'cmd') {
+      appendLine(data.text, 't-dim');
+    } else if (data.type === 'line') {
+      const lower = data.text.toLowerCase();
+      const cls = lower.includes('error') || lower.includes('failed') ? 't-error'
+                : lower.includes('gbak:completing') || lower.includes('closing') ? 't-ok' : '';
+      appendLine(data.text, cls);
+    } else if (data.type === 'done') {
+      _bkpSource.close(); _bkpSource = null;
+      if (btn) { btn.disabled = false; btn.innerHTML = '▶ Executar agora'; }
+      closeBtn.disabled = false;
+      if (data.status === 'SUCCESS') {
+        result.innerHTML = `<span style="color:var(--success);font-weight:600">✓ Backup concluído — ${fmtBytes(data.size)} em ${fmtDur(data.duration)}</span>`;
+        toast(`Backup OK: ${connObj?.name}`, 'success');
+      } else {
+        result.innerHTML = `<span style="color:var(--error);font-weight:600">✗ Falha: ${esc(data.error||'')}</span>`;
+        toast(`Falha no backup: ${connObj?.name}`, 'error');
+      }
+    }
+  };
+
+  _bkpSource.onerror = () => {
+    if (_bkpSource) { _bkpSource.close(); _bkpSource = null; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '▶ Executar agora'; }
+    closeBtn.disabled = false;
+    appendLine('Conexão com o servidor encerrada.', 't-dim');
+  };
+}
+
+function closeBkpModal() {
+  if (_bkpSource) { _bkpSource.close(); _bkpSource = null; }
+  document.getElementById('bkp-overlay').classList.remove('open');
+}
+
+// ── CONNECTIONS ────────────────────────────────────────────────────────────
+async function loadConnections() {
+  try {
+    _connections = await api('GET','/api/connections');
+    _populateConnSelects();
+    const tbody = document.getElementById('conn-tbody');
+    if (!_connections.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v6c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 11v6c0 1.66 4.03 3 9 3s9-1.34 9-3v-6"/></svg><p>Nenhuma conexão cadastrada.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = _connections.map(c => `<tr>
+      <td><strong>${esc(c.name)}</strong></td>
+      <td>${esc(c.host)}:${c.port}</td>
+      <td style="font-size:.78rem;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(c.db_path)}">${esc(c.db_path)}</td>
+      <td style="font-size:.78rem">${esc(c.backup_path)}</td>
+      <td>${c.retention_count}</td>
+      <td>${c.enabled ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-error">Inativo</span>'}</td>
+      <td>
+        <button class="btn btn-ghost btn-sm" onclick="editConn(${c.id})">Editar</button>
+        <button class="btn btn-danger btn-sm" style="margin-left:4px" onclick="deleteConn(${c.id})">Excluir</button>
+      </td>
+    </tr>`).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+}
+
+function _populateConnSelects() {
+  const histEl = document.getElementById('hist-filter-conn');
+  if (histEl) histEl.innerHTML = '<option value="">Todas as conexões</option>' +
+    _connections.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+}
+
+let _connUrlMode = false;
+function toggleConnUrlMode(useUrl) {
+  _connUrlMode = useUrl;
+  document.getElementById('conn-fields-sep').style.display = useUrl ? 'none' : '';
+  document.getElementById('conn-fields-url').style.display = useUrl ? '' : 'none';
+  if (useUrl) {
+    const h = document.getElementById('conn-host').value.trim();
+    const p = document.getElementById('conn-port').value;
+    const d = document.getElementById('conn-dbpath').value.trim();
+    if (h && d) document.getElementById('conn-url').value = `${h}/${p}:${d}`;
+  } else {
+    const url = document.getElementById('conn-url').value.trim();
+    const m = url.match(/^([^/:\\]+)\/(\d+):(.+)$/) || url.match(/^([^/:\\]+):(.+)$/);
+    if (m) {
+      if (m.length === 4) { document.getElementById('conn-host').value = m[1]; document.getElementById('conn-port').value = m[2]; document.getElementById('conn-dbpath').value = m[3]; }
+      else { document.getElementById('conn-host').value = m[1]; document.getElementById('conn-dbpath').value = m[2]; }
+    }
+  }
+}
+
+function openConnModal(c = null) {
+  _connUrlMode = false;
+  document.getElementById('conn-fields-sep').style.display = '';
+  document.getElementById('conn-fields-url').style.display = 'none';
+  document.getElementById('conn-modal-title').textContent = c ? 'Editar Conexão' : 'Nova Conexão';
+  document.getElementById('conn-id').value     = c?.id ?? '';
+  document.getElementById('conn-name').value   = c?.name ?? '';
+  document.getElementById('conn-host').value   = c?.host ?? '';
+  document.getElementById('conn-port').value   = c?.port ?? 3050;
+  document.getElementById('conn-dbpath').value = c?.db_path ?? '';
+  document.getElementById('conn-url').value    = '';
+  document.getElementById('conn-user').value   = c?.username ?? '';
+  document.getElementById('conn-pass').value   = '';
+  document.getElementById('conn-path').value   = c?.backup_path ?? '';
+  document.getElementById('conn-ret').value    = c?.retention_count ?? 7;
+  document.getElementById('conn-gbak').value   = c?.gbak_path ?? '';
+  document.getElementById('conn-enabled').checked = c?.enabled ?? true;
+  document.getElementById('conn-overlay').classList.add('open');
+}
+function closeConnModal() { document.getElementById('conn-overlay').classList.remove('open'); }
+function editConn(id) { const c = _connections.find(x => x.id === id); if (c) openConnModal(c); }
+
+async function saveConnection() {
+  const id = document.getElementById('conn-id').value;
+  const pass = document.getElementById('conn-pass').value;
+  let host, port, db_path;
+  if (_connUrlMode) {
+    const url = document.getElementById('conn-url').value.trim();
+    const m = url.match(/^([^/:\\]+)\/(\d+):(.+)$/) || url.match(/^([^/:\\]+):(.+)$/);
+    if (!m) { toast('URL inválida. Use: host/porta:caminho', 'error'); return; }
+    host = m[1]; port = m.length === 4 ? +m[2] : 3050; db_path = m[m.length-1];
+  } else {
+    host    = document.getElementById('conn-host').value.trim();
+    port    = +document.getElementById('conn-port').value;
+    db_path = document.getElementById('conn-dbpath').value.trim();
+  }
+  const body = {
+    name: document.getElementById('conn-name').value.trim(),
+    host, port, db_path,
+    username: document.getElementById('conn-user').value.trim(),
+    backup_path: document.getElementById('conn-path').value.trim(),
+    retention_count: +document.getElementById('conn-ret').value,
+    gbak_path: document.getElementById('conn-gbak').value.trim() || null,
+    enabled: document.getElementById('conn-enabled').checked,
+  };
+  if (pass) body.password = pass;
+  if (!body.name || !body.host || !body.db_path || !body.username || !body.backup_path) {
+    toast('Preencha todos os campos obrigatórios.', 'error'); return;
+  }
+  if (!id && !pass) { toast('Informe a senha.', 'error'); return; }
+  try {
+    if (id) await api('PUT', `/api/connections/${id}`, body);
+    else { body.password = pass; await api('POST', '/api/connections', body); }
+    toast('Conexão salva.', 'success');
+    closeConnModal(); loadConnections();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteConn(id) {
+  if (!confirm('Excluir esta conexão?')) return;
+  try {
+    await api('DELETE', `/api/connections/${id}`);
+    toast('Conexão excluída.', 'success'); loadConnections();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── SCHEDULES ──────────────────────────────────────────────────────────────
+async function loadSchedulesPage() {
+  if (!_connections.length) _connections = await api('GET','/api/connections').catch(()=>[]);
+  await loadSchedules();
+}
+
+async function loadSchedules() {
+  try {
+    _schedules = await api('GET','/api/schedules');
+    const container = document.getElementById('sched-list');
+    if (!_schedules.length) {
+      container.innerHTML = `<div class="empty"><svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><p>Nenhum agendamento criado.</p></div>`;
+      return;
+    }
+    container.innerHTML = _schedules.map(s => {
+      const h = String(s.cron_hour).padStart(2,'0'), m = String(s.cron_minute).padStart(2,'0');
+      const tags = s.connection_ids.map(id => `<span class="conn-tag">${esc(connName(id))}</span>`).join('') || '<span style="color:var(--text-muted);font-size:.75rem">Sem conexões</span>';
+      const activeBadge = s.enabled ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-error">Inativo</span>';
+      return `<div class="sched-block">
+        <div class="sched-header">
+          <div>
+            <div class="sched-name">${esc(s.name)}</div>
+            <div class="sched-time">${h}:${m} &nbsp;·&nbsp; ${dayNames(s.days_of_week)}</div>
+            ${s.next_run ? `<div class="sched-time">Próxima: ${fmtDate(s.next_run)}</div>` : ''}
+          </div>
+          <div class="sched-actions">
+            ${activeBadge}
+            <button class="btn btn-ghost btn-sm" onclick="editSched(${s.id})">Editar</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSched(${s.id})">Excluir</button>
+          </div>
+        </div>
+        <div class="sched-conns">${tags}</div>
+      </div>`;
+    }).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+}
+
+function _buildSchedConnList(selectedIds = []) {
+  const el = document.getElementById('sched-conn-list');
+  if (!_connections.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:.82rem;padding:4px">Nenhuma conexão cadastrada.</p>'; return; }
+  el.innerHTML = _connections.map(c => `
+    <label>
+      <input type="checkbox" value="${c.id}" ${selectedIds.includes(c.id)?'checked':''} />
+      ${esc(c.name)} <span style="color:var(--text-muted);font-size:.75rem">${esc(c.host)}:${c.port}</span>
+    </label>`).join('');
+}
+
+function openSchedModal(s = null) {
+  document.getElementById('sched-modal-title').textContent = s ? 'Editar Agendamento' : 'Novo Agendamento';
+  document.getElementById('sched-id').value     = s?.id ?? '';
+  document.getElementById('sched-name').value   = s?.name ?? '';
+  document.getElementById('sched-hour').value   = s?.cron_hour ?? 2;
+  document.getElementById('sched-minute').value = s?.cron_minute ?? 0;
+  document.getElementById('sched-enabled').checked = s?.enabled ?? true;
+  const days = s ? s.days_of_week.split(',') : ['0','1','2','3','4','5','6'];
+  for (let i=0; i<=6; i++) document.getElementById('d'+i).checked = days.includes(String(i));
+  _buildSchedConnList(s?.connection_ids || []);
+  document.getElementById('sched-overlay').classList.add('open');
+}
+function closeSchedModal() { document.getElementById('sched-overlay').classList.remove('open'); }
+function editSched(id) { const s = _schedules.find(x => x.id===id); if (s) openSchedModal(s); }
+
+async function saveSchedule() {
+  const id   = document.getElementById('sched-id').value;
+  const name = document.getElementById('sched-name').value.trim();
+  if (!name) { toast('Informe o nome do agendamento.','error'); return; }
+  const days = [0,1,2,3,4,5,6].filter(i=>document.getElementById('d'+i).checked).join(',');
+  if (!days) { toast('Selecione pelo menos um dia.','error'); return; }
+  const connection_ids = [...document.querySelectorAll('#sched-conn-list input:checked')].map(el => +el.value);
+  const body = {
+    name, cron_hour: +document.getElementById('sched-hour').value,
+    cron_minute: +document.getElementById('sched-minute').value,
+    days_of_week: days, enabled: document.getElementById('sched-enabled').checked, connection_ids,
+  };
+  try {
+    if (id) await api('PUT',`/api/schedules/${id}`,body);
+    else await api('POST','/api/schedules',body);
+    toast('Agendamento salvo.','success'); closeSchedModal(); loadSchedules();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function deleteSched(id) {
+  if (!confirm('Excluir este agendamento?')) return;
+  try {
+    await api('DELETE',`/api/schedules/${id}`);
+    toast('Agendamento excluído.','success'); loadSchedules();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+// ── HISTORY ────────────────────────────────────────────────────────────────
+async function loadHistoryPage() {
+  if (!_connections.length) _connections = await api('GET','/api/connections').catch(()=>[]);
+  _populateConnSelects();
+  await loadHistory();
+}
+
+async function loadHistory() {
+  const connId = document.getElementById('hist-filter-conn')?.value || '';
+  const url = '/api/logs?limit=100' + (connId ? `&connection_id=${connId}` : '');
+  try {
+    const logs = await api('GET', url);
+    const tbody = document.getElementById('hist-tbody');
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg><p>Nenhum registro encontrado.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = logs.map((l,i) => {
+      const hasOutput = l.gbak_output || l.error_message;
+      const outputHtml = hasOutput ? `
+        <button class="toggle-output" onclick="toggleOutput(${i})">▼ ver saída</button>
+        <div class="log-output" id="out-${i}">${esc(l.gbak_output || l.error_message || '')}</div>` : '-';
+      return `<tr>
+        <td>${fmtDate(l.started_at)}</td>
+        <td>${esc(connName(l.connection_id))}</td>
+        <td>${statusBadge(l.status)}</td>
+        <td>${fmtBytes(l.fbk_size_bytes)}</td>
+        <td>${fmtDur(l.duration_seconds)}</td>
+        <td style="max-width:220px">${outputHtml}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+}
+
+function toggleOutput(i) { document.getElementById('out-'+i)?.classList.toggle('open'); }
+
+// ── SETTINGS ───────────────────────────────────────────────────────────────
+async function loadSettings() {
+  try {
+    const [cfg, status] = await Promise.all([api('GET','/api/config'), api('GET','/api/status')]);
+    document.getElementById('cfg-port').value = cfg.app_port;
+    document.getElementById('app-status').innerHTML =
+      `<strong>Versão:</strong> ${status.version} &nbsp;·&nbsp; <strong>Uptime:</strong> ${fmtDur(status.uptime_seconds)} &nbsp;·&nbsp; <strong>Serviço:</strong> ${status.service_status}`;
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+
+  // Logo preview
+  const preview = document.getElementById('logo-preview-area');
+  const r = await fetch('/api/config/logo');
+  if (r.ok) {
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    preview.innerHTML = `<img src="${url}" alt="Logo atual"><span style="font-size:.8rem;color:var(--text-muted)">Logo atual</span>`;
+  } else {
+    preview.innerHTML = '<span class="no-logo">Nenhum logo configurado.</span>';
+  }
+}
+
+async function saveConfig() {
+  const port = +document.getElementById('cfg-port').value;
+  if (!port || port < 1024 || port > 65535) { toast('Porta inválida.','error'); return; }
+  try {
+    await api('PUT','/api/config',{ app_port: port });
+    toast('Porta salva. Reinicie o serviço para aplicar.','info');
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function restartService() {
+  if (!confirm('Reiniciar o serviço Windows?')) return;
+  toast('Comando enviado. Aguarde e recarregue a página.','info');
+}
+
+async function uploadLogo() {
+  const fileInput = document.getElementById('logo-file');
+  if (!fileInput.files.length) { toast('Selecione um arquivo.', 'error'); return; }
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  try {
+    const r = await fetch('/api/config/logo', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + _token },
+      body: formData,
+    });
+    if (!r.ok) { const e = await r.json(); toast(e.detail || 'Erro ao enviar logo.', 'error'); return; }
+    toast('Logo atualizado.', 'success');
+    fileInput.value = '';
+    loadLogoForUI();
+    loadSettings();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteLogo() {
+  if (!confirm('Remover o logo personalizado?')) return;
+  try {
+    await api('DELETE', '/api/config/logo');
+    toast('Logo removido.', 'success');
+    // Restaura padrão
+    document.getElementById('sidebar-logo-area').innerHTML = '<div class="logo-text">FB Backup Manager<span>Firebird Backup</span></div>';
+    document.getElementById('login-logo-area').innerHTML = '<div class="login-title">FB Backup Manager</div><div class="login-sub">Firebird Backup</div>';
+    document.getElementById('favicon').href = '';
+    _logoUrl = null;
+    loadSettings();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function changePassword() {
+  const current = document.getElementById('pwd-current').value;
+  const newPwd  = document.getElementById('pwd-new').value;
+  const confirm = document.getElementById('pwd-confirm').value;
+  if (!current) { toast('Informe a senha atual.', 'error'); return; }
+  if (newPwd.length < 4) { toast('Nova senha muito curta (mínimo 4 caracteres).', 'error'); return; }
+  if (newPwd !== confirm) { toast('As senhas não coincidem.', 'error'); return; }
+  try {
+    await api('PUT', '/api/auth/password', { current_password: current, new_password: newPwd });
+    toast('Senha alterada com sucesso.', 'success');
+    ['pwd-current','pwd-new','pwd-confirm'].forEach(id => document.getElementById(id).value = '');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// Close overlays on outside click
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => {
+    if (e.target === o) {
+      const closeBtn = document.getElementById('bkp-close-btn');
+      if (o.id === 'bkp-overlay' && closeBtn?.disabled) return;
+      o.classList.remove('open');
+    }
+  });
+});
+
+// ── Init ───────────────────────────────────────────────────────────────────
+async function init() {
+  await loadLogoForUI();
+  if (_token) {
+    try {
+      await api('GET', '/api/auth/check');
+      showApp();
+      loadDashboard();
+    } catch(e) {
+      // 401 já chamou showLogin() dentro de api()
+    }
+  } else {
+    showLogin();
+  }
+}
+
+init();
+</script>
+</body>
+</html>
