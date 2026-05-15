@@ -14,6 +14,7 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -28,9 +29,25 @@ def _exe_dir() -> Path:
 
 
 def _start_uvicorn(port: int) -> None:
-    import uvicorn
-    from backend.main import app
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    try:
+        import uvicorn
+        from backend.main import app
+        # Sem log_config próprio do uvicorn: seus loggers propagam para o root
+        # logger que já tem o RotatingFileHandler configurado em main.py.
+        _log_cfg = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {},
+            "handlers": {},
+            "loggers": {
+                "uvicorn":        {"handlers": [], "level": "INFO",    "propagate": True},
+                "uvicorn.error":  {"handlers": [], "level": "INFO",    "propagate": True},
+                "uvicorn.access": {"handlers": [], "level": "WARNING", "propagate": True},
+            },
+        }
+        uvicorn.run(app, host="0.0.0.0", port=port, log_config=_log_cfg)
+    except Exception:
+        logger.exception("Erro fatal no thread uvicorn — servidor encerrado")
 
 
 def run_dev(port: int = 8099) -> None:
@@ -73,20 +90,27 @@ if IS_WINDOWS:
                     thread = threading.Thread(target=_start_uvicorn, args=(port,), daemon=True)
                     thread.start()
 
-                    # Informa ao SCM que o serviço está rodando; sem isso o SCM
-                    # aguarda o timeout (~30 s) e mata o processo.
-                    self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+                    # Aguarda uvicorn inicializar; se o thread morrer antes de 10 s
+                    # é sinal de falha na inicialização — reporta STOPPED ao SCM.
+                    time.sleep(10)
+                    if not thread.is_alive():
+                        raise RuntimeError("Thread uvicorn encerrou inesperadamente na inicialização")
 
+                    self.ReportServiceStatus(win32service.SERVICE_RUNNING)
                     win32event.WaitForSingleObject(self._stop_event, win32event.INFINITE)
 
                 except Exception as exc:
                     logger.exception("Erro fatal no serviço: %s", exc)
-                    # Reporta falha para o SCM para o serviço aparecer como parado
                     self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
+        def _is_scm_context() -> bool:
+            """True quando o processo não tem console — indica que foi iniciado pelo SCM."""
+            import ctypes
+            return ctypes.windll.kernel32.GetConsoleWindow() == 0
+
         def handle_service_args() -> bool:
+            # Modo CLI: install / start / stop / remove
             if "--service" in sys.argv:
-                # Modo CLI: install / start / stop / remove
                 idx = sys.argv.index("--service")
                 if idx + 1 >= len(sys.argv):
                     return False
@@ -95,12 +119,12 @@ if IS_WINDOWS:
                 win32serviceutil.HandleCommandLine(FBBackupService)
                 return True
 
-            # Modo SCM: o Windows inicia o exe sem argumentos.
-            # HandleCommandLine sem args apenas exibe help e retorna —
-            # o processo sai sem chamar StartServiceCtrlDispatcher,
-            # causando o Error 1053.
-            # O padrão correto para PyInstaller + pywin32 é usar servicemanager.
-            if getattr(sys, "frozen", False):
+            # Modo SCM: o exe frozen não tem console quando iniciado pelo Windows
+            # Service Control Manager. GetConsoleWindow()==0 é o indicador correto.
+            # HandleCommandLine sem args apenas exibe help e retorna sem chamar
+            # StartServiceCtrlDispatcher — causando Error 1053. O padrão correto
+            # para PyInstaller+pywin32 é usar servicemanager diretamente.
+            if getattr(sys, "frozen", False) and _is_scm_context():
                 import servicemanager
                 servicemanager.Initialize()
                 servicemanager.PrepareToHostSingle(FBBackupService)

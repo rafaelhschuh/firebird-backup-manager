@@ -18,8 +18,14 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  # ══════════════════════════════════════════════════════════════════════════
+  # 1. BUILD — compila exe + instalador e publica artefatos
+  # ══════════════════════════════════════════════════════════════════════════
+  build:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag:     ${{ steps.ver.outputs.tag }}
 
     steps:
       # ── 1. Código-fonte ─────────────────────────────────────────────────
@@ -27,8 +33,6 @@ jobs:
         uses: actions/checkout@v4
 
       # ── 2. Determinar versão ────────────────────────────────────────────
-      # push de tag  → strip do "v" (v1.2.0 → 1.2.0)
-      # workflow_dispatch → usa o input diretamente
       - name: Determinar versão
         id: ver
         shell: bash
@@ -38,8 +42,8 @@ jobs:
           else
             VERSION="${{ inputs.version }}"
           fi
-          echo "version=$VERSION"   >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION"      >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION"    >> "$GITHUB_OUTPUT"
           echo "Versão de build: $VERSION"
 
       # ── 3. Python 3.12 ──────────────────────────────────────────────────
@@ -68,7 +72,6 @@ jobs:
       - name: Instalar Inno Setup 6
         run: choco install innosetup --no-progress -y
 
-      # O installer.iss referencia "data\*"; cria placeholder para evitar erro
       - name: Criar diretório data com placeholder
         shell: bash
         run: mkdir -p data && touch data/.gitkeep
@@ -81,9 +84,9 @@ jobs:
           $version = "${{ steps.ver.outputs.version }}"
 
           # Substitui a versão diretamente no .iss (mais confiável que /D override)
-          (Get-Content installer.iss) `
-            -replace '#define AppVersion\s+"[^"]+"', "#define AppVersion `"$version`"" `
-            | Set-Content installer.iss
+          $content = Get-Content installer.iss -Raw
+          $content = $content -replace '#define AppVersion\s+"[^"]+"', "#define AppVersion `"$version`""
+          Set-Content installer.iss -Value $content
           Write-Host "installer.iss atualizado para versão $version"
 
           Write-Host "Compilando instalador versão $version ..."
@@ -103,25 +106,146 @@ jobs:
             || (echo "::error::Instalador não encontrado: $INSTALLER" && exit 1)
           echo "Instalador OK: $(du -sh "$INSTALLER" | cut -f1)"
 
-      # ── 7. Criar Release no GitHub ──────────────────────────────────────
+      # ── 7. Publicar artefatos para os outros jobs ────────────────────────
+      - name: Upload artefato — executável
+        uses: actions/upload-artifact@v4
+        with:
+          name: exe-bundle
+          path: dist/fb_backup_manager/
+          retention-days: 1
+
+      - name: Upload artefato — instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: dist/FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe
+          retention-days: 1
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 2. SMOKE TEST — instala e verifica o serviço Windows + API
+  # ══════════════════════════════════════════════════════════════════════════
+  smoke-test:
+    needs: [build]
+    runs-on: windows-latest
+
+    steps:
+      - name: Download executável
+        uses: actions/download-artifact@v4
+        with:
+          name: exe-bundle
+          path: fb_backup_manager
+
+      # Configura banco e senha antes de instalar o serviço
+      - name: Configurar banco (admin password)
+        shell: pwsh
+        working-directory: fb_backup_manager
+        run: |
+          .\fb_backup_manager.exe --admin-password "Teste1234!"
+          Write-Host "Banco configurado."
+
+      # Registra o serviço no SCM
+      - name: Instalar serviço Windows
+        shell: pwsh
+        working-directory: fb_backup_manager
+        run: |
+          .\fb_backup_manager.exe --service install
+          Write-Host "Serviço instalado."
+
+      # Inicia o serviço via SCM
+      - name: Iniciar serviço
+        shell: pwsh
+        run: |
+          net start FBBackupManager
+          Write-Host "Comando net start enviado."
+
+      # Aguarda o serviço (e uvicorn) inicializarem completamente
+      - name: Aguardar inicialização (25 s)
+        shell: pwsh
+        run: Start-Sleep -Seconds 25
+
+      # Verifica estado no SCM
+      - name: Verificar serviço RUNNING
+        shell: pwsh
+        run: |
+          $query = sc.exe query FBBackupManager
+          Write-Host $query
+          if ($query -notmatch "RUNNING") {
+            Write-Error "::error::Serviço não está RUNNING"
+            exit 1
+          }
+          Write-Host "Serviço RUNNING — OK"
+
+      # Verifica que a API HTTP está respondendo
+      - name: Verificar API respondendo (HTTP 200)
+        shell: pwsh
+        run: |
+          try {
+            $r = Invoke-WebRequest -Uri http://localhost:8099 -TimeoutSec 30 -UseBasicParsing
+            Write-Host "HTTP $($r.StatusCode) — OK"
+            if ($r.StatusCode -ne 200) {
+              Write-Error "::error::API retornou $($r.StatusCode), esperado 200"
+              exit 1
+            }
+          } catch {
+            Write-Error "::error::Falha ao conectar em http://localhost:8099 — $_"
+            exit 1
+          }
+
+      # Exibe log do serviço para diagnóstico (sempre, mesmo em falha)
+      - name: Exibir log do serviço
+        if: always()
+        shell: pwsh
+        working-directory: fb_backup_manager
+        run: |
+          if (Test-Path fb_backup_manager.log) {
+            Write-Host "=== fb_backup_manager.log ==="
+            Get-Content fb_backup_manager.log
+          } else {
+            Write-Host "Log não encontrado."
+          }
+
+      # Para e remove o serviço (always para garantir limpeza)
+      - name: Parar e remover serviço
+        if: always()
+        shell: pwsh
+        working-directory: fb_backup_manager
+        run: |
+          net stop FBBackupManager 2>$null; $true
+          .\fb_backup_manager.exe --service remove 2>$null; $true
+          Write-Host "Serviço removido."
+
+  # ══════════════════════════════════════════════════════════════════════════
+  # 3. RELEASE — cria o GitHub Release (apenas se smoke-test passou)
+  # ══════════════════════════════════════════════════════════════════════════
+  release:
+    needs: [build, smoke-test]
+    runs-on: windows-latest
+
+    steps:
+      - name: Download instalador
+        uses: actions/download-artifact@v4
+        with:
+          name: installer
+          path: dist
+
       - name: Criar GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.ver.outputs.tag }}
-          name: "FB Backup Manager v${{ steps.ver.outputs.version }}"
+          tag_name: ${{ needs.build.outputs.tag }}
+          name: "FB Backup Manager v${{ needs.build.outputs.version }}"
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
             ## Instalação
 
-            1. Baixe `FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe`
+            1. Baixe `FBBackupManager_Setup_${{ needs.build.outputs.version }}.exe`
             2. Execute como **Administrador** na máquina Windows
             3. Siga o assistente — defina a senha de acesso durante a instalação
             4. Após instalar, acesse **http://localhost:8099** no navegador
 
             > O serviço Windows `FBBackupManager` é instalado e iniciado automaticamente.
           files: |
-            dist/FBBackupManager_Setup_${{ steps.ver.outputs.version }}.exe
+            dist/FBBackupManager_Setup_${{ needs.build.outputs.version }}.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

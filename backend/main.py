@@ -14,7 +14,7 @@ from backend.routers import connections, backups, scheduler as sched_router, con
 from backend.routers import auth as auth_router
 
 # ---------------------------------------------------------------------------
-# Logging
+# Logging — warns/errors sempre gravados em arquivo na pasta da aplicação
 # ---------------------------------------------------------------------------
 if getattr(sys, "frozen", False):
     _APP_DIR = Path(sys.executable).parent
@@ -23,9 +23,31 @@ else:
 
 LOG_FILE = _APP_DIR / "fb_backup_manager.log"
 
-_handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
-_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
-logging.basicConfig(level=logging.INFO, handlers=[_handler, logging.StreamHandler(sys.stdout)])
+_fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+_file_handler = RotatingFileHandler(LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
+_file_handler.setFormatter(_fmt)
+
+# Configura root logger diretamente (basicConfig é no-op se uvicorn já
+# adicionou handlers; limpar e reconfigurar garante que o arquivo seja sempre usado).
+_root = logging.getLogger()
+_root.handlers.clear()
+_root.setLevel(logging.WARNING)       # terceiros: só WARNING+
+_root.addHandler(_file_handler)
+
+logging.getLogger("backend").setLevel(logging.INFO)    # nossos módulos: INFO+
+logging.getLogger("uvicorn").setLevel(logging.INFO)
+logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
+# Console apenas se stdout disponível (ausente em modo serviço Windows)
+if sys.stdout is not None:
+    try:
+        _con = logging.StreamHandler(sys.stdout)
+        _con.setFormatter(_fmt)
+        _root.addHandler(_con)
+    except Exception:
+        pass
 
 logger = logging.getLogger(__name__)
 
@@ -103,4 +125,4 @@ if __name__ == "__main__":
     port = cfg.app_port if cfg else 8099
 
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_config=None)
