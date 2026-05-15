@@ -305,6 +305,14 @@
         <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
         <span>Agendamentos</span>
       </a>
+      <a data-page="restore">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+        <span>Restore</span>
+      </a>
+      <a data-page="maintenance">
+        <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+        <span>Manutenção</span>
+      </a>
       <a data-page="history">
         <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
         <span>Histórico</span>
@@ -365,6 +373,128 @@
         </button>
       </div>
       <div id="sched-list"><div class="empty"><p>Carregando…</p></div></div>
+    </section>
+
+    <!-- RESTORE -->
+    <section id="page-restore" class="page">
+      <div class="page-header">
+        <div class="page-title">Restore</div>
+      </div>
+
+      <!-- Tipo de restore -->
+      <div class="card" style="margin-bottom:20px">
+        <div class="form-group" style="margin-bottom:12px">
+          <label>Tipo de Restore</label>
+          <div style="display:flex;gap:20px;margin-top:6px">
+            <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.9rem;cursor:pointer">
+              <input type="radio" name="restore-type" value="CONNECTION" checked onchange="switchRestoreType(this.value)" style="width:auto" />
+              Banco da Conexão
+            </label>
+            <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.9rem;cursor:pointer">
+              <input type="radio" name="restore-type" value="SIMPLE" onchange="switchRestoreType(this.value)" style="width:auto" />
+              Restore Simples
+            </label>
+          </div>
+        </div>
+
+        <!-- Painel: Banco da Conexão -->
+        <div id="restore-panel-CONNECTION">
+          <div class="form-group">
+            <label>Conexão *</label>
+            <select id="rest-conn-id" onchange="loadAvailableBackups()">
+              <option value="">Selecione a conexão…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Backup disponível *</label>
+            <select id="rest-fbk-select">
+              <option value="">Selecione primeiro a conexão…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <div class="toggle-row">
+              <label class="toggle"><input type="checkbox" id="rest-safety-bkp" checked /><span class="toggle-slider"></span></label>
+              <span style="font-size:.85rem;font-weight:500">Criar cópia de segurança (.fdb.bkp) antes do restore</span>
+            </div>
+          </div>
+          <button class="btn btn-danger" onclick="runRestore('CONNECTION')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+            Restaurar Banco
+          </button>
+        </div>
+
+        <!-- Painel: Restore Simples -->
+        <div id="restore-panel-SIMPLE" style="display:none">
+          <div class="form-group">
+            <label>Conexão (servidor) *</label>
+            <select id="rest-simple-conn-id">
+              <option value="">Selecione a conexão (para usar o servidor)…</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Caminho do .fbk de origem *</label>
+            <input type="text" id="rest-simple-fbk" placeholder="C:\Backups\banco_20240101_0200.fbk" />
+          </div>
+          <div class="form-group">
+            <label>Caminho de destino .fdb (no servidor) *</label>
+            <input type="text" id="rest-simple-target" placeholder="C:\dados\banco_restaurado.fdb" />
+          </div>
+          <button class="btn btn-danger" onclick="runRestore('SIMPLE')">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+            Restaurar para Novo Caminho
+          </button>
+        </div>
+      </div>
+
+      <!-- Histórico de restores -->
+      <h3 style="font-size:.85rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Histórico de Restores</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Conexão</th><th>Tipo</th><th>Status</th><th>Duração</th><th>Erro</th></tr></thead>
+          <tbody id="restore-hist-tbody">
+            <tr><td colspan="6"><div class="empty"><p>Carregando…</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- MAINTENANCE -->
+    <section id="page-maintenance" class="page">
+      <div class="page-header">
+        <div class="page-title">Manutenção</div>
+      </div>
+      <div class="card" style="margin-bottom:20px;max-width:600px">
+        <p style="font-size:.87rem;color:var(--text-muted);margin-bottom:14px;line-height:1.7">
+          A reindexação reconstrói os índices do banco Firebird via ciclo <strong>backup → restore</strong>,
+          melhorando a performance de consultas. O banco ficará brevemente indisponível durante o restore.
+        </p>
+        <div class="form-group">
+          <label>Conexão *</label>
+          <select id="maint-conn-id">
+            <option value="">Selecione a conexão…</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <div class="toggle-row">
+            <label class="toggle"><input type="checkbox" id="maint-safety-bkp" checked /><span class="toggle-slider"></span></label>
+            <span style="font-size:.85rem;font-weight:500">Criar cópia de segurança (.fdb.bkp) antes</span>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="runReindex()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Reindexar Banco
+        </button>
+      </div>
+
+      <h3 style="font-size:.85rem;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">Histórico de Reindexações</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Data/Hora</th><th>Conexão</th><th>Status</th><th>Duração</th><th>Erro</th></tr></thead>
+          <tbody id="maint-hist-tbody">
+            <tr><td colspan="5"><div class="empty"><p>Carregando…</p></div></td></tr>
+          </tbody>
+        </table>
+      </div>
     </section>
 
     <!-- HISTORY -->
@@ -542,6 +672,19 @@
       <label>Nome do agendamento *</label>
       <input type="text" id="sched-name" placeholder="Backup da noite" />
     </div>
+    <div class="form-group">
+      <label>Tipo de operação</label>
+      <div style="display:flex;gap:20px;margin-top:6px">
+        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.9rem;cursor:pointer">
+          <input type="radio" name="sched-type" id="sched-type-backup" value="BACKUP" checked style="width:auto" />
+          Backup
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;text-transform:none;letter-spacing:0;font-weight:500;font-size:.9rem;cursor:pointer">
+          <input type="radio" name="sched-type" id="sched-type-reindex" value="REINDEX" style="width:auto" />
+          Reindexação
+        </label>
+      </div>
+    </div>
     <div class="inline-row form-group">
       <div class="form-group">
         <label>Hora</label>
@@ -579,6 +722,18 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeSchedModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="saveSchedule()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Restore / Reindex Output Overlay -->
+<div class="overlay" id="ops-overlay">
+  <div class="modal" style="width:700px">
+    <h2 id="ops-modal-title">Executando…</h2>
+    <div class="terminal" id="ops-terminal"></div>
+    <div id="ops-result" style="margin-top:12px;font-size:.85rem;min-height:24px"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="ops-close-btn" onclick="closeOpsModal()" disabled>Fechar</button>
     </div>
   </div>
 </div>
@@ -745,6 +900,8 @@ document.querySelectorAll('#sidebar nav a').forEach(a => {
     if (page === 'dashboard')   loadDashboard();
     if (page === 'connections') loadConnections();
     if (page === 'schedules')   loadSchedulesPage();
+    if (page === 'restore')     loadRestorePage();
+    if (page === 'maintenance') loadMaintenancePage();
     if (page === 'history')     loadHistoryPage();
     if (page === 'settings')    loadSettings();
   });
@@ -895,9 +1052,15 @@ async function loadConnections() {
 }
 
 function _populateConnSelects() {
+  const opts = _connections.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   const histEl = document.getElementById('hist-filter-conn');
-  if (histEl) histEl.innerHTML = '<option value="">Todas as conexões</option>' +
-    _connections.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  if (histEl) histEl.innerHTML = '<option value="">Todas as conexões</option>' + opts;
+  const restConn = document.getElementById('rest-conn-id');
+  if (restConn) restConn.innerHTML = '<option value="">Selecione a conexão…</option>' + opts;
+  const restSimple = document.getElementById('rest-simple-conn-id');
+  if (restSimple) restSimple.innerHTML = '<option value="">Selecione a conexão (para usar o servidor)…</option>' + opts;
+  const maintConn = document.getElementById('maint-conn-id');
+  if (maintConn) maintConn.innerHTML = '<option value="">Selecione a conexão…</option>' + opts;
 }
 
 let _connUrlMode = false;
@@ -1004,6 +1167,9 @@ async function loadSchedules() {
       const h = String(s.cron_hour).padStart(2,'0'), m = String(s.cron_minute).padStart(2,'0');
       const tags = s.connection_ids.map(id => `<span class="conn-tag">${esc(connName(id))}</span>`).join('') || '<span style="color:var(--text-muted);font-size:.75rem">Sem conexões</span>';
       const activeBadge = s.enabled ? '<span class="badge badge-success">Ativo</span>' : '<span class="badge badge-error">Inativo</span>';
+      const typeBadge = s.schedule_type === 'REINDEX'
+        ? '<span class="badge badge-running">Reindexação</span>'
+        : '<span class="badge badge-waiting">Backup</span>';
       return `<div class="sched-block">
         <div class="sched-header">
           <div>
@@ -1012,6 +1178,7 @@ async function loadSchedules() {
             ${s.next_run ? `<div class="sched-time">Próxima: ${fmtDate(s.next_run)}</div>` : ''}
           </div>
           <div class="sched-actions">
+            ${typeBadge}
             ${activeBadge}
             <button class="btn btn-ghost btn-sm" onclick="editSched(${s.id})">Editar</button>
             <button class="btn btn-danger btn-sm" onclick="deleteSched(${s.id})">Excluir</button>
@@ -1040,6 +1207,9 @@ function openSchedModal(s = null) {
   document.getElementById('sched-hour').value   = s?.cron_hour ?? 2;
   document.getElementById('sched-minute').value = s?.cron_minute ?? 0;
   document.getElementById('sched-enabled').checked = s?.enabled ?? true;
+  const schedType = s?.schedule_type || 'BACKUP';
+  document.getElementById('sched-type-backup').checked  = schedType === 'BACKUP';
+  document.getElementById('sched-type-reindex').checked = schedType === 'REINDEX';
   const days = s ? s.days_of_week.split(',') : ['0','1','2','3','4','5','6'];
   for (let i=0; i<=6; i++) document.getElementById('d'+i).checked = days.includes(String(i));
   _buildSchedConnList(s?.connection_ids || []);
@@ -1055,10 +1225,12 @@ async function saveSchedule() {
   const days = [0,1,2,3,4,5,6].filter(i=>document.getElementById('d'+i).checked).join(',');
   if (!days) { toast('Selecione pelo menos um dia.','error'); return; }
   const connection_ids = [...document.querySelectorAll('#sched-conn-list input:checked')].map(el => +el.value);
+  const schedule_type = document.getElementById('sched-type-reindex').checked ? 'REINDEX' : 'BACKUP';
   const body = {
     name, cron_hour: +document.getElementById('sched-hour').value,
     cron_minute: +document.getElementById('sched-minute').value,
-    days_of_week: days, enabled: document.getElementById('sched-enabled').checked, connection_ids,
+    days_of_week: days, enabled: document.getElementById('sched-enabled').checked,
+    schedule_type, connection_ids,
   };
   try {
     if (id) await api('PUT',`/api/schedules/${id}`,body);
@@ -1073,6 +1245,198 @@ async function deleteSched(id) {
     await api('DELETE',`/api/schedules/${id}`);
     toast('Agendamento excluído.','success'); loadSchedules();
   } catch(e) { toast(e.message,'error'); }
+}
+
+// ── RESTORE ────────────────────────────────────────────────────────────────
+async function loadRestorePage() {
+  if (!_connections.length) _connections = await api('GET','/api/connections').catch(()=>[]);
+  _populateConnSelects();
+  await loadRestoreHistory();
+}
+
+function switchRestoreType(type) {
+  document.getElementById('restore-panel-CONNECTION').style.display = type === 'CONNECTION' ? '' : 'none';
+  document.getElementById('restore-panel-SIMPLE').style.display     = type === 'SIMPLE'     ? '' : 'none';
+}
+
+async function loadAvailableBackups() {
+  const connId = document.getElementById('rest-conn-id').value;
+  const sel = document.getElementById('rest-fbk-select');
+  if (!connId) { sel.innerHTML = '<option value="">Selecione primeiro a conexão…</option>'; return; }
+  sel.innerHTML = '<option value="">Carregando…</option>';
+  try {
+    const files = await api('GET', `/api/restore/${connId}/files`);
+    if (!files.length) {
+      sel.innerHTML = '<option value="">Nenhum backup disponível</option>';
+    } else {
+      sel.innerHTML = files.map(f =>
+        `<option value="${esc(f.fbk_path)}">${fmtDate(f.started_at)} — ${fmtBytes(f.fbk_size_bytes)}</option>`
+      ).join('');
+    }
+  } catch(e) { sel.innerHTML = '<option value="">Erro ao carregar backups</option>'; }
+}
+
+let _opsSource = null;
+
+function _openOpsModal(title) {
+  document.getElementById('ops-modal-title').textContent = title;
+  document.getElementById('ops-terminal').innerHTML = '';
+  document.getElementById('ops-result').innerHTML = '';
+  document.getElementById('ops-close-btn').disabled = true;
+  document.getElementById('ops-overlay').classList.add('open');
+}
+
+function closeOpsModal() {
+  if (_opsSource) { _opsSource.close(); _opsSource = null; }
+  document.getElementById('ops-overlay').classList.remove('open');
+}
+
+function _opsAppendLine(text, cls) {
+  const term = document.getElementById('ops-terminal');
+  const line = document.createElement('div');
+  line.className = cls || '';
+  line.textContent = text;
+  term.appendChild(line);
+  term.scrollTop = term.scrollHeight;
+}
+
+function _opsHandleStream(url, onDone) {
+  if (_opsSource) { _opsSource.close(); _opsSource = null; }
+  _opsSource = new EventSource(url);
+  _opsSource.onmessage = e => {
+    const data = JSON.parse(e.data);
+    if (data.type === 'start') {
+      _opsAppendLine(`→ Iniciando: ${data.connection || ''}`, 't-info');
+    } else if (data.type === 'phase') {
+      _opsAppendLine(data.text, 't-info');
+    } else if (data.type === 'cmd') {
+      _opsAppendLine(data.text, 't-dim');
+    } else if (data.type === 'line') {
+      const lower = data.text.toLowerCase();
+      const cls = lower.includes('error') || lower.includes('failed') ? 't-error'
+                : lower.includes('aviso') || lower.includes('warning') ? 't-dim'
+                : lower.includes('gbak:completing') || lower.includes('closing') ? 't-ok' : '';
+      _opsAppendLine(data.text, cls);
+    } else if (data.type === 'done') {
+      _opsSource.close(); _opsSource = null;
+      document.getElementById('ops-close-btn').disabled = false;
+      onDone(data);
+    }
+  };
+  _opsSource.onerror = () => {
+    if (_opsSource) { _opsSource.close(); _opsSource = null; }
+    document.getElementById('ops-close-btn').disabled = false;
+    _opsAppendLine('Conexão encerrada.', 't-dim');
+  };
+}
+
+async function runRestore(type) {
+  if (type === 'CONNECTION') {
+    const connId = document.getElementById('rest-conn-id').value;
+    const fbkPath = document.getElementById('rest-fbk-select').value;
+    const skipSafety = !document.getElementById('rest-safety-bkp').checked;
+    if (!connId || !fbkPath) { toast('Selecione a conexão e o arquivo de backup.', 'error'); return; }
+    if (!confirm('Confirma o restore? O banco atual será substituído.')) return;
+    _openOpsModal('Restore em andamento…');
+    const url = `/api/restore/${connId}/run?fbk_path=${encodeURIComponent(fbkPath)}&skip_safety_backup=${skipSafety}&token=${encodeURIComponent(_token)}`;
+    _opsHandleStream(url, data => {
+      const res = document.getElementById('ops-result');
+      if (data.status === 'SUCCESS') {
+        res.innerHTML = `<span style="color:var(--success);font-weight:600">✓ Restore concluído em ${fmtDur(data.duration)}</span>`;
+        toast('Restore concluído com sucesso.', 'success');
+      } else {
+        res.innerHTML = `<span style="color:var(--error);font-weight:600">✗ Falha: ${esc(data.error||'')}</span>`;
+        toast('Falha no restore.', 'error');
+      }
+      loadRestoreHistory();
+    });
+  } else {
+    const connId = document.getElementById('rest-simple-conn-id').value;
+    const fbkPath = document.getElementById('rest-simple-fbk').value.trim();
+    const targetDb = document.getElementById('rest-simple-target').value.trim();
+    if (!connId || !fbkPath || !targetDb) { toast('Preencha todos os campos.', 'error'); return; }
+    _openOpsModal('Restore Simples em andamento…');
+    const url = `/api/restore/simple/run?server_connection_id=${connId}&fbk_path=${encodeURIComponent(fbkPath)}&target_db_path=${encodeURIComponent(targetDb)}&token=${encodeURIComponent(_token)}`;
+    _opsHandleStream(url, data => {
+      const res = document.getElementById('ops-result');
+      if (data.status === 'SUCCESS') {
+        res.innerHTML = `<span style="color:var(--success);font-weight:600">✓ Restore concluído em ${fmtDur(data.duration)}</span>`;
+        toast('Restore simples concluído.', 'success');
+      } else {
+        res.innerHTML = `<span style="color:var(--error);font-weight:600">✗ Falha: ${esc(data.error||'')}</span>`;
+        toast('Falha no restore simples.', 'error');
+      }
+      loadRestoreHistory();
+    });
+  }
+}
+
+async function loadRestoreHistory() {
+  try {
+    const logs = await api('GET', '/api/restore/logs?limit=50');
+    const tbody = document.getElementById('restore-hist-tbody');
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="6"><div class="empty"><p>Nenhum restore realizado.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = logs.map(l => {
+      const typeLabel = l.restore_type === 'SIMPLE' ? 'Simples' : 'Conexão';
+      return `<tr>
+        <td>${fmtDate(l.started_at)}</td>
+        <td>${esc(connName(l.connection_id))}</td>
+        <td><span class="badge badge-waiting">${typeLabel}</span></td>
+        <td>${statusBadge(l.status)}</td>
+        <td>${fmtDur(l.duration_seconds)}</td>
+        <td style="max-width:200px;font-size:.75rem;overflow:hidden;text-overflow:ellipsis">${esc(l.error_message||'')}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
+}
+
+// ── MAINTENANCE ────────────────────────────────────────────────────────────
+async function loadMaintenancePage() {
+  if (!_connections.length) _connections = await api('GET','/api/connections').catch(()=>[]);
+  _populateConnSelects();
+  await loadReindexHistory();
+}
+
+async function runReindex() {
+  const connId = document.getElementById('maint-conn-id').value;
+  const skipSafety = !document.getElementById('maint-safety-bkp').checked;
+  if (!connId) { toast('Selecione a conexão.', 'error'); return; }
+  if (!confirm('Confirma a reindexação? O banco ficará brevemente indisponível.')) return;
+  const connObj = _connections.find(c => c.id === +connId);
+  _openOpsModal(`Reindexando: ${connObj?.name || '#'+connId}`);
+  const url = `/api/maintenance/${connId}/reindex?skip_safety_backup=${skipSafety}&token=${encodeURIComponent(_token)}`;
+  _opsHandleStream(url, data => {
+    const res = document.getElementById('ops-result');
+    if (data.status === 'SUCCESS') {
+      res.innerHTML = `<span style="color:var(--success);font-weight:600">✓ Reindexação concluída em ${fmtDur(data.duration)}</span>`;
+      toast('Reindexação concluída com sucesso.', 'success');
+    } else {
+      res.innerHTML = `<span style="color:var(--error);font-weight:600">✗ Falha na ${data.phase||'operação'}: ${esc(data.error||'')}</span>`;
+      toast('Falha na reindexação.', 'error');
+    }
+    loadReindexHistory();
+  });
+}
+
+async function loadReindexHistory() {
+  try {
+    const logs = await api('GET', '/api/maintenance/logs?limit=50');
+    const tbody = document.getElementById('maint-hist-tbody');
+    if (!logs.length) {
+      tbody.innerHTML = `<tr><td colspan="5"><div class="empty"><p>Nenhuma reindexação realizada.</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = logs.map(l => `<tr>
+      <td>${fmtDate(l.started_at)}</td>
+      <td>${esc(connName(l.connection_id))}</td>
+      <td>${statusBadge(l.status)}</td>
+      <td>${fmtDur(l.duration_seconds)}</td>
+      <td style="max-width:200px;font-size:.75rem;overflow:hidden;text-overflow:ellipsis">${esc(l.error_message||'')}</td>
+    </tr>`).join('');
+  } catch(e) { if(e.message !== 'Sessão expirada. Faça login novamente.') toast(e.message,'error'); }
 }
 
 // ── HISTORY ────────────────────────────────────────────────────────────────
@@ -1197,8 +1561,8 @@ async function changePassword() {
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => {
     if (e.target === o) {
-      const closeBtn = document.getElementById('bkp-close-btn');
-      if (o.id === 'bkp-overlay' && closeBtn?.disabled) return;
+      if (o.id === 'bkp-overlay' && document.getElementById('bkp-close-btn')?.disabled) return;
+      if (o.id === 'ops-overlay' && document.getElementById('ops-close-btn')?.disabled) return;
       o.classList.remove('open');
     }
   });

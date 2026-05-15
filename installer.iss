@@ -2,7 +2,7 @@
 ; Compilar com: iscc installer.iss
 
 #define AppName      "FB Backup Manager"
-#define AppVersion   "1.0.0"
+#define AppVersion   "2.0.0"
 #define AppPublisher "FB Backup Manager"
 #define AppURL       "http://localhost:8099"
 #define AppExeName   "fb_backup_manager.exe"

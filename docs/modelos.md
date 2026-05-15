@@ -20,6 +20,7 @@ Arquivo: `<exe_dir>/data/fb_backup.db`
 ```mermaid
 erDiagram
     Connection ||--o{ BackupLog : "gera"
+    Connection ||--o{ RestoreLog : "gera"
     Connection ||--o{ ScheduleConnection : "pertence a"
     Schedule   ||--o{ ScheduleConnection : "contém"
 
@@ -45,6 +46,7 @@ erDiagram
         int cron_minute
         str days_of_week
         bool enabled
+        str schedule_type
     }
 
     ScheduleConnection {
@@ -59,8 +61,24 @@ erDiagram
         datetime started_at
         datetime finished_at
         str status
+        str operation_type
         str fbk_path
         int fbk_size_bytes
+        float duration_seconds
+        str error_message
+        str gbak_output
+    }
+
+    RestoreLog {
+        int id PK
+        int connection_id FK
+        str restore_type
+        str fbk_path
+        str target_db_path
+        str safety_bkp_path
+        datetime started_at
+        datetime finished_at
+        str status
         float duration_seconds
         str error_message
         str gbak_output
@@ -111,6 +129,7 @@ erDiagram
 | `cron_minute` | int | — | Minuto de execução (0–59) |
 | `days_of_week` | str | `"0,1,2,3,4,5,6"` | Dias ativos: `0`=Seg, `6`=Dom |
 | `enabled` | bool | `true` | Ativa/desativa o agendamento |
+| `schedule_type` | enum | `BACKUP` | `BACKUP` \| `REINDEX` |
 
 > [!example] Exemplo: dias úteis às 02:30
 > `cron_hour=2`, `cron_minute=30`, `days_of_week="0,1,2,3,4"`
@@ -127,7 +146,7 @@ Tabela de ligação entre `Schedule` e `Connection`.
 | `schedule_id` | int FK | Referência a `Schedule.id` |
 | `connection_id` | int FK | Referência a `Connection.id` |
 
-Um `Schedule` pode ter múltiplas `Connection`s. Quando o job dispara, o `_job_func` itera sobre todos os vínculos e executa `run_backup` para cada conexão ativa.
+Um `Schedule` pode ter múltiplas `Connection`s. Quando o job dispara, o `_job_func` itera sobre todos os vínculos e executa `run_backup` (se `schedule_type=BACKUP`) ou `run_reindex` (se `schedule_type=REINDEX`) para cada conexão ativa.
 
 ---
 
@@ -143,11 +162,31 @@ Um `Schedule` pode ter múltiplas `Connection`s. Quando o job dispara, o `_job_f
 | `fbk_path` | str\|null | `null` | Caminho completo do `.fbk` gerado |
 | `fbk_size_bytes` | int\|null | `null` | Tamanho em bytes |
 | `duration_seconds` | float\|null | `null` | Duração total |
+| `operation_type` | str | `"BACKUP"` | `"BACKUP"` \| `"REINDEX"` |
 | `error_message` | str\|null | `null` | Mensagem de erro resumida |
 | `gbak_output` | str\|null | `null` | Saída completa do gbak (verbose) |
 
 > [!note] Status `RUNNING`
 > O registro é criado com `status=RUNNING` antes do gbak iniciar. Se o processo for interrompido abruptamente (ex: serviço parado no meio do backup), o registro permanece como `RUNNING` indefinidamente.
+
+---
+
+## `RestoreLog` — Histórico de Restores
+
+| Campo | Tipo | Padrão | Descrição |
+|---|---|---|---|
+| `id` | int PK | auto | Identificador |
+| `connection_id` | int FK | — | Conexão utilizada |
+| `restore_type` | enum | — | `CONNECTION` \| `SIMPLE` |
+| `fbk_path` | str | — | Caminho do `.fbk` de origem |
+| `target_db_path` | str | — | Caminho destino no servidor Firebird |
+| `safety_bkp_path` | str\|null | `null` | Caminho do `.fdb.bkp` criado antes do restore |
+| `started_at` | datetime | utcnow | Início da operação |
+| `finished_at` | datetime\|null | `null` | Fim da operação |
+| `status` | enum | `RUNNING` | `SUCCESS` \| `FAILED` \| `RUNNING` |
+| `duration_seconds` | float\|null | `null` | Duração total |
+| `error_message` | str\|null | `null` | Mensagem de erro |
+| `gbak_output` | str\|null | `null` | Saída completa do gbak |
 
 ---
 
@@ -169,4 +208,6 @@ Tabela de linha única (`id=1`).
 ## Próximos passos
 
 → [[api|API Reference]]
+→ [[restore|Restore]]
+→ [[manutencao|Manutenção]]
 → [[arquitetura#Segurança|Segurança e criptografia]]

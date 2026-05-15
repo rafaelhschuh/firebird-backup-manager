@@ -12,7 +12,8 @@ scheduler = BackgroundScheduler(timezone="UTC")
 def _job_func(schedule_id: int) -> None:
     from backend.database import engine
     from backend.backup import run_backup
-    from backend.models import Schedule, ScheduleConnection, Connection
+    from backend.restore import run_reindex
+    from backend.models import Schedule, ScheduleConnection, Connection, ScheduleType
 
     with Session(engine) as session:
         schedule = session.get(Schedule, schedule_id)
@@ -27,9 +28,12 @@ def _job_func(schedule_id: int) -> None:
             connection = session.get(Connection, link.connection_id)
             if connection and connection.enabled:
                 try:
-                    run_backup(connection, session)
+                    if schedule.schedule_type == ScheduleType.REINDEX:
+                        run_reindex(connection, session)
+                    else:
+                        run_backup(connection, session)
                 except Exception as exc:
-                    logger.error("Erro no backup agendado %s / %s: %s", schedule.name, connection.name, exc)
+                    logger.error("Erro no agendamento %s / %s: %s", schedule.name, connection.name, exc)
 
 
 def load_schedules(session: Session) -> None:

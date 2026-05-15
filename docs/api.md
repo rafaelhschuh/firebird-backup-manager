@@ -144,6 +144,7 @@ Cria um agendamento e registra o job no APScheduler.
   "cron_minute": 0,
   "days_of_week": "0,1,2,3,4",
   "enabled": true,
+  "schedule_type": "BACKUP",
   "connection_ids": [1, 2]
 }
 ```
@@ -155,7 +156,10 @@ Cria um agendamento e registra o job no APScheduler.
 | `cron_minute` | sim | — |
 | `days_of_week` | não | `"0,1,2,3,4,5,6"` |
 | `enabled` | não | `true` |
+| `schedule_type` | não | `"BACKUP"` |
 | `connection_ids` | não | `[]` |
+
+`schedule_type`: `"BACKUP"` executa backup; `"REINDEX"` executa ciclo backup→restore para reindexação.
 
 > [!example] Formato days_of_week
 > String de dígitos separados por vírgula: `0`=Seg, `1`=Ter, …, `6`=Dom.
@@ -319,7 +323,91 @@ Retorna informações do serviço em execução.
 
 ---
 
+---
+
+## Restore
+
+### `GET /api/restore/{connection_id}/files`
+
+Lista os backups disponíveis (status `SUCCESS`, arquivo existente em disco) para uma conexão.
+
+**Response** `200 OK`
+```json
+[
+  {
+    "log_id": 42,
+    "fbk_path": "C:\\Backups\\banco_20260514_0200.fbk",
+    "started_at": "2026-05-14T02:00:01",
+    "fbk_size_bytes": 134742016
+  }
+]
+```
+
+---
+
+### `GET /api/restore/{connection_id}/run`
+
+Executa restore de um `.fbk` sobre o banco da conexão. Responde via **SSE**.
+
+**Query params**
+
+| Parâmetro | Obrigatório | Padrão | Descrição |
+|---|---|---|---|
+| `fbk_path` | sim | — | Caminho do arquivo `.fbk` |
+| `skip_safety_backup` | não | `false` | Pula cópia `.fdb.bkp` |
+| `token` | sim | — | Token de autenticação |
+
+---
+
+### `GET /api/restore/simple/run`
+
+Restore de um `.fbk` para qualquer caminho no servidor. Responde via **SSE**.
+
+**Query params**
+
+| Parâmetro | Obrigatório | Descrição |
+|---|---|---|
+| `server_connection_id` | sim | ID da conexão (credenciais do servidor) |
+| `fbk_path` | sim | Caminho local do `.fbk` |
+| `target_db_path` | sim | Caminho destino no servidor Firebird |
+| `token` | sim | Token de autenticação |
+
+---
+
+### `GET /api/restore/logs`
+
+Histórico de operações de restore.
+
+**Query params:** `connection_id` (filtro), `limit` (padrão: 50)
+
+---
+
+## Manutenção
+
+### `GET /api/maintenance/{connection_id}/reindex`
+
+Executa reindexação completa (backup → restore) via **SSE**.
+
+**Query params**
+
+| Parâmetro | Obrigatório | Padrão | Descrição |
+|---|---|---|---|
+| `skip_safety_backup` | não | `false` | Pula cópia `.fdb.bkp` |
+| `token` | sim | — | Token de autenticação |
+
+---
+
+### `GET /api/maintenance/logs`
+
+Histórico de reindexações (registros de `BackupLog` com `operation_type = "REINDEX"`).
+
+**Query params:** `connection_id` (filtro), `limit` (padrão: 50)
+
+---
+
 ## Próximos passos
 
 → [[modelos|Modelos de Dados]]
+→ [[restore|Restore]]
+→ [[manutencao|Manutenção]]
 → [[build|Build e Distribuição]]
